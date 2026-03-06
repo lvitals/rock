@@ -539,10 +539,75 @@ function commands.init(mode)
     end
 end
 
+local function get_active_lua_version()
+    local lua_v = os.getenv("LUA_VERSION")
+    local active_p = get_active_info()
+
+    if not lua_v and active_p then
+        local h = io.popen("lua -v 2>&1")
+        lua_v = h and h:read("*a"):match("Lua (%d+%.%d+%.?%d*)")
+        if h then h:close() end
+    end
+    return lua_v, active_p
+end
+
+local function get_env_prefix(lua_v, active_p)
+    if not lua_v then return "" end
+    -- Determine the correct prefix (ld)
+    local ld
+    if active_p and not active_p:match("%.rock") then
+        ld = active_p:match("(.*)/bin/lua") or "/usr"
+    else
+        ld = os.getenv("HOME") .. "/.rock/versions/lua-" .. lua_v
+    end
+
+    local pc_path = ld .. "/lib/pkgconfig"
+    local old_pc = os.getenv("PKG_CONFIG_PATH") or ""
+    return string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q PKG_CONFIG_PATH=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E -llua $LDFLAGS\" LIBS=\"-llua -lm -ldl\" LUA_LIBS=\"-llua -lm -ldl\" LUA_LIB=\"-llua\" ",
+        ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. (old_pc ~= "" and (":" .. old_pc) or ""), ld, ld), ld
+end
+
+function commands.remove(package)
+    if not package then
+        print(colors.red .. "Error: Specify package name." .. colors.reset)
+        return
+    end
+
+    if io.open("rock.toml", "r") then
+        io.open("rock.toml", "r"):close()
+        project.remove(package)
+        return
+    end
+
+    -- Global removal
+    local lua_v, active_p = get_active_lua_version()
+    if not lua_v then
+        print(colors.red .. "Error: No active Lua environment found to remove package '" .. package .. "'." .. colors.reset)
+        return
+    end
+
+    local env_prefix, ld = get_env_prefix(lua_v, active_p)
+    local lv = lua_v:match("^(%d+%.%d+)")
+
+    local lr_bin = "luarocks"
+    local internal_lr = os.getenv("HOME") .. "/.rock/bin/luarocks"
+    local f_lr = io.open(internal_lr, "r")
+    if f_lr then f_lr:close(); lr_bin = internal_lr end
+
+    local lr_cmd = env_prefix .. lr_bin .. " --lua-version=" .. lv .. " --lua-dir=" .. ld .. " --tree=" .. ld .. " remove " .. package
+
+    if spinner(lr_cmd, "Removing global package '" .. package .. "'") then
+        print(colors.bold_green .. "✓ Successfully removed global package '" .. package .. "'." .. colors.reset)
+        print("eval: hash -r 2>/dev/null || true")
+    else
+        print(colors.red .. "Error: Failed to remove package '" .. package .. "'." .. colors.reset)
+    end
+end
+
 function commands.install(v, v2)
     local force = (v == "--force" or v2 == "--force")
     local version = (v and v:sub(1,1) ~= "-") and v or nil
-    
+
     if not version then
         -- No version provided, check for rock.toml and restore project
         project.restore(force)
@@ -552,7 +617,7 @@ function commands.install(v, v2)
     local db = load_versions_db()
     local v_clean = version:gsub("^refman%-", "")
     local is_refman = version:match("^refman%-")
-    
+
     local has_versions = false
     for _ in pairs(db.sources) do has_versions = true; break end
     if not has_versions then
@@ -565,39 +630,19 @@ function commands.install(v, v2)
     end
 
     local expected_sum = is_refman and db.manuals[v_clean] or db.sources[v_clean]
-    
-    if not expected_sum then 
+
+    if not expected_sum then
         -- If it's not a known Lua version, try to install it as a global package via LuaRocks
-        local lua_v = os.getenv("LUA_VERSION")
-        local active_p = get_active_info()
-        
-        if not lua_v and active_p then
-            local h = io.popen("lua -v 2>&1")
-            lua_v = h and h:read("*a"):match("Lua (%d+%.%d+%.?%d*)")
-            if h then h:close() end
-        end
+        local lua_v, active_p = get_active_lua_version()
 
         if not lua_v then
-            print(colors.red .. "Error: '" .. version .. "' is not a known Lua version, and no active Lua environment found to install as a package." .. colors.reset) 
+            print(colors.red .. "Error: '" .. version .. "' is not a known Lua version, and no active Lua environment found to install as a package." .. colors.reset)
             os.exit(1)
         end
-        
-        print("Installing global package '" .. version .. "' for Lua " .. lua_v .. "...")
-        local lv = lua_v:match("^(%d+%.%d+)")
-        
-        -- Determine the correct prefix (ld)
-        local ld
-        if active_p and not active_p:match("%.rock") then
-            ld = active_p:match("(.*)/bin/lua") or "/usr"
-        else
-            ld = os.getenv("HOME") .. "/.rock/versions/lua-" .. lua_v
-        end
 
-        local pc_path = ld .. "/lib/pkgconfig"
-        local old_pc = os.getenv("PKG_CONFIG_PATH") or ""
-        local env_prefix = string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q PKG_CONFIG_PATH=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E -llua $LDFLAGS\" LIBS=\"-llua -lm -ldl\" LUA_LIBS=\"-llua -lm -ldl\" LUA_LIB=\"-llua\" ",
-            ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. (old_pc ~= "" and (":" .. old_pc) or ""), ld, ld)
-            
+        local lv = lua_v:match("^(%d+%.%d+)")
+        local env_prefix, ld = get_env_prefix(lua_v, active_p)
+
         local force_flag = force and " --force" or ""
         local lr_bin = "luarocks"
         -- Use internal luarocks if available
@@ -606,11 +651,16 @@ function commands.install(v, v2)
         if f_lr then f_lr:close(); lr_bin = internal_lr end
 
         local lr_cmd = env_prefix .. lr_bin .. " --lua-version=" .. lv .. " --lua-dir=" .. ld .. " --tree=" .. ld .. " install " .. version .. force_flag
-        
-        os.execute(lr_cmd)
+
+        if spinner(lr_cmd, "Installing global package '" .. version .. "'") then
+            print(colors.bold_green .. "✓ Successfully installed global package '" .. version .. "'." .. colors.reset)
+            print("eval: hash -r 2>/dev/null || true")
+        else
+            print(colors.red .. "Error: Failed to install package '" .. version .. "'." .. colors.reset)
+            os.exit(1)
+        end
         return
-    end
-    
+    end    
     local v_dir = os.getenv("HOME") .. "/.rock/versions"
     local prefix = is_refman and "refman-" or "lua-"
     local tarball = v_dir .. "/" .. prefix .. v_clean .. ".tar.gz"
@@ -730,7 +780,6 @@ end
 function commands.config(k, v) project.config(k, v) end
 function commands.path() project.path() end
 function commands.save(p, ...) project.save(p, ...) end
-function commands.remove(p) project.remove(p) end
 function commands.restore(force) project.restore(force) end
 function commands.run(...) project.run(...) end
 

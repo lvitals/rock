@@ -11,27 +11,45 @@ function utils.spinner(cmd, message)
     local frames = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
     local i = 1
     
-    local output = {}
-    local handle = io.popen(cmd .. " 2>&1; echo $?")
-    if not handle then return false end
-
-    for line in handle:lines() do
+    local tmp_out = os.tmpname()
+    -- Execute command in background and save its exit code
+    local full_cmd = "(" .. cmd .. ") > " .. tmp_out .. " 2>&1; echo $? > " .. tmp_out .. ".exit"
+    os.execute(full_cmd .. " &")
+    
+    local success = nil
+    while success == nil do
         io.stderr:write("\r" .. colors.bold_cyan .. frames[i] .. colors.reset .. " " .. message)
         i = (i % #frames) + 1
-        table.insert(output, line)
+        
+        -- Check if command finished
+        local f_exit = io.open(tmp_out .. ".exit", "r")
+        if f_exit then
+            local code = f_exit:read("*a"):gsub("%s+", "")
+            f_exit:close()
+            if code ~= "" then
+                success = (code == "0")
+            end
+        end
+        
+        if success == nil then
+            os.execute("sleep 0.1")
+        end
     end
-    handle:close()
     
-    local last_line = table.remove(output)
-    local success = (last_line == "0")
-    
+    -- Clear line and show final status
     io.stderr:write("\r" .. (success and (colors.bold_green .. "✓") or (colors.red .. "✗")) .. " " .. message .. string.rep(" ", 20) .. "\n")
     
     if not success then
-        for _, line in ipairs(output) do
-            print(line)
+        local f_out = io.open(tmp_out, "r")
+        if f_out then
+            local out = f_out:read("*a")
+            f_out:close()
+            print(out)
         end
     end
+    
+    os.remove(tmp_out)
+    os.remove(tmp_out .. ".exit")
     
     return success
 end
