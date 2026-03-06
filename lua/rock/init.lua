@@ -552,10 +552,9 @@ function commands.install(v, v2)
     if spinner("curl -L -o " .. tarball .. " https://www.lua.org/ftp/" .. prefix .. v_clean .. ".tar.gz", "Downloading Lua " .. v_clean) then
         local check_sum_cmd = "echo '" .. expected_sum .. "  " .. tarball .. "' | sha256sum --check"
         if os.execute(check_sum_cmd .. " > /dev/null 2>&1") then
-            if not is_refman then 
-                local build_cmd = "cd " .. v_dir .. " && tar -xzf " .. tarball .. " && cd lua-" .. v_clean .. " && make linux && make install INSTALL_TOP=" .. inst_path
-                if spinner(build_cmd, "Building and Installing Lua " .. v_clean) then
-                    print(colors.bold_green .. "✓ Successfully installed Lua " .. v_clean .. " at " .. inst_path .. colors.reset) 
+            if not is_refman then
+                local build_cmd = "cd " .. v_dir .. " && tar -xzf " .. tarball .. " && cd lua-" .. v_clean .. " && make linux MYCFLAGS='-fPIC' && make install INSTALL_TOP=" .. inst_path
+                if spinner(build_cmd, "Building and Installing Lua " .. v_clean) then                    print(colors.bold_green .. "✓ Successfully installed Lua " .. v_clean .. " at " .. inst_path .. colors.reset) 
                 else
                     print(colors.red .. "Error: Failed to build Lua " .. v_clean .. colors.reset)
                 end

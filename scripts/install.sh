@@ -72,7 +72,7 @@ if [ ! -f "$LUA_INSTALL_PATH/bin/lua" ]; then
     PLAT="linux"
     if [[ "$OSTYPE" == "darwin"* ]]; then PLAT="macosx"; fi
     
-    make "$PLAT"
+    make "$PLAT" MYCFLAGS="-fPIC"
     make install INSTALL_TOP="$LUA_INSTALL_PATH"
     
     # Also install as a managed version for the user
