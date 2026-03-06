@@ -7,17 +7,23 @@ local function setup_path()
         local src = debug.getinfo(1, "S").source
         if src:sub(1,1) == "@" then
             rock_path = src:sub(2)
+        elseif src:sub(1,2) == " @" then
+            rock_path = src:sub(3)
+        else
+            local home = os.getenv("HOME")
+            if home then rock_path = home .. "/.rock/lua/rock/init.lua" end
         end
     end
     
     if rock_path then
+        -- Handle both global installs and local rock structure
         local base = rock_path:match("(.*)/lua/rock/init.lua")
-        if base then package.path = base .. "/?.lua;" .. base .. "/?/init.lua;" .. package.path end
+        if base then 
+            package.path = base .. "/?.lua;" .. base .. "/?/init.lua;" .. package.path 
+        end
     end
 end
 setup_path()
-
--- ... (código intermediário omitido para o replace funcionar corretamente, mas mantendo a estrutura)
 
 local utils = require("lua.rock.utils")
 local colors = utils.colors

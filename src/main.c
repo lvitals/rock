@@ -21,8 +21,25 @@ int main(int argc, char *argv[]) {
     }
     lua_setglobal(L, "arg");
 
-    // Load main logic
-    const char *bootstrap = "require('lua.rock.init')";
+    // Load main logic with path discovery
+    const char *bootstrap =
+        "local function try_require()\n"
+        "    local ok, m = pcall(require, 'lua.rock.init')\n"
+        "    if ok then return true end\n"
+        "    local home = os.getenv('HOME')\n"
+        "    local rock_root = os.getenv('ROCK_ROOT') or (home and home .. '/.rock')\n"
+        "    if rock_root then\n"
+        "        package.path = rock_root .. '/?.lua;' .. rock_root .. '/?/init.lua;' .. package.path\n"
+        "        ok, m = pcall(require, 'lua.rock.init')\n"
+        "        if ok then return true end\n"
+        "    end\n"
+        "    package.path = './?.lua;./?/init.lua;./lua/?.lua;./lua/?/init.lua;' .. package.path\n"
+        "    return pcall(require, 'lua.rock.init')\n"
+        "end\n"
+        "if not try_require() then\n"
+        "    io.stderr:write('Rock Error: Could not find lua.rock.init\\n')\n"
+        "    os.exit(1)\n"
+        "end";
 
     if (luaL_dostring(L, bootstrap)) {
         fprintf(stderr, "Fatal: %s\n", lua_tostring(L, -1));
