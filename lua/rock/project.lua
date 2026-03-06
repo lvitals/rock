@@ -22,6 +22,27 @@ local function write_toml(filename, data)
     return true
 end
 
+local function read_rockrc()
+    local f = io.open(".rockrc", "r")
+    if not f then return {} end
+    local flags = {}
+    for line in f:lines() do
+        local pkg, args = line:match("^([^:]+):%s*(.*)$")
+        if pkg then flags[pkg] = args end
+    end
+    f:close()
+    return flags
+end
+
+local function write_rockrc(flags)
+    local f = io.open(".rockrc", "w")
+    if not f then return end
+    for pkg, args in pairs(flags) do
+        f:write(pkg .. ": " .. args .. "\n")
+    end
+    f:close()
+end
+
 function project.init()
     local name = os.getenv("PWD"):match("([^/]+)$") or "my-lua-project"
     
@@ -111,7 +132,19 @@ local function write_project_toml(data)
     return true
 end
 
-function project.save(package_arg, is_dev)
+function project.save(package_arg, ...)
+    local args = {...}
+    local is_dev = false
+    local extra_flags = ""
+    
+    for _, a in ipairs(args) do
+        if a == true or a == "--dev" then
+            is_dev = true
+        elseif type(a) == "string" then
+            extra_flags = extra_flags .. " " .. a
+        end
+    end
+
     local data = read_toml("rock.toml")
     if not data then
         print("Error: No rock.toml found. Run 'rock init' first.")
@@ -148,10 +181,17 @@ function project.save(package_arg, is_dev)
         end
     end
 
-    local cmd = env_prefix .. "luarocks" .. lua_ver_flag .. lua_dir_flag .. " install --tree=lua_modules " .. package .. (luarocks_ver ~= "" and (" " .. luarocks_ver) or "")
+    local cmd = env_prefix .. "luarocks" .. lua_ver_flag .. lua_dir_flag .. " install --tree=lua_modules " .. package .. (luarocks_ver ~= "" and (" " .. luarocks_ver) or "") .. extra_flags
     local success = spinner(cmd, "Installing " .. package .. (requested_version ~= "latest" and (" (" .. requested_version .. ")") or ""))
 
     if success then
+        -- Persist flags if they were provided
+        if extra_flags ~= "" then
+            local flags = read_rockrc()
+            flags[package] = extra_flags:gsub("^%s*", "")
+            write_rockrc(flags)
+        end
+
         local section = is_dev and "devDependencies" or "dependencies"
         data[section] = data[section] or {}
         
@@ -267,6 +307,7 @@ function project.restore(force)
 
     if #deps_to_install == 0 then        print("No dependencies to install.")
     else
+        local rockrc_flags = read_rockrc()
         print(string.format("Installing %d dependencies...", #deps_to_install))
         for _, dep in ipairs(deps_to_install) do
             local ver_cmd = ""
@@ -274,7 +315,10 @@ function project.restore(force)
                 ver_cmd = dep.version:gsub("^%^", ""):gsub("^~", "")
             end
             local force_flag = force and "--force " or ""
-            local cmd = env_prefix .. "luarocks" .. lua_ver_flag .. lua_dir_flag .. " install --tree=lua_modules " .. force_flag .. dep.name .. " " .. ver_cmd
+            local extra_args = rockrc_flags[dep.name] or ""
+            if extra_args ~= "" then extra_args = " " .. extra_args end
+
+            local cmd = env_prefix .. "luarocks" .. lua_ver_flag .. lua_dir_flag .. " install --tree=lua_modules " .. force_flag .. dep.name .. " " .. ver_cmd .. extra_args
 
             spinner(cmd, "  Installing " .. dep.name .. (dep.version ~= "latest" and (" (" .. dep.version .. ")") or ""))        end
         print("Done restoring dependencies.")

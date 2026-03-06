@@ -10,21 +10,29 @@ local colors = {
 function utils.spinner(cmd, message)
     local frames = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
     local i = 1
-    io.stderr:write(message .. "  ")
     
+    local output = {}
     local handle = io.popen(cmd .. " 2>&1; echo $?")
     if not handle then return false end
 
-    local last_line = ""
     for line in handle:lines() do
         io.stderr:write("\r" .. colors.bold_cyan .. frames[i] .. colors.reset .. " " .. message)
         i = (i % #frames) + 1
-        last_line = line
+        table.insert(output, line)
     end
     handle:close()
     
+    local last_line = table.remove(output)
     local success = (last_line == "0")
+    
     io.stderr:write("\r" .. (success and (colors.bold_green .. "✓") or (colors.red .. "✗")) .. " " .. message .. string.rep(" ", 20) .. "\n")
+    
+    if not success then
+        for _, line in ipairs(output) do
+            print(line)
+        end
+    end
+    
     return success
 end
 

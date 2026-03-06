@@ -438,6 +438,11 @@ function commands.init(mode)
         print("    fi")
         print("}")
 
+        -- Load environment immediately if already in a project
+        print("if [ -f \"rock.toml\" ]; then")
+        print("    eval \"$(\"" .. bin_path .. "\" auto-switch | grep '^eval: ' | sed 's/^eval: //')\"")
+        print("fi")
+
         print("rock() {")
         print("    if [ -f \"rock.toml\" ] && [ \"$1\" != \"use\" ] && [ \"$1\" != \"auto-switch\" ] && [ \"$1\" != \"install\" ]; then")
         print("        local sw_out=$(\"" .. bin_path .. "\" auto-switch 2>&1)")
@@ -621,6 +626,8 @@ commands["auto-switch"] = function()
             if v ~= os.getenv("LUA_VERSION") then
                 commands.use(v)
             end
+            -- Load project paths after switching Lua version
+            project.path()
         else
             io.stderr:write(colors.red .. "Error: Lua version " .. v .. " (required by rock.toml) is not installed.\n" .. colors.reset)
             io.stderr:write(colors.yellow .. "To set up your environment, please run:\n" .. colors.reset)
@@ -629,14 +636,20 @@ commands["auto-switch"] = function()
             io.stderr:write("  " .. colors.bold_white .. "$ rock install\n" .. colors.reset)
             os.exit(1)
         end
+    else
+        -- If no specific Lua version is required, still load project paths if rock.toml exists
+        if io.open("rock.toml", "r") then
+            io.open("rock.toml", "r"):close()
+            project.path()
+        end
     end
 end
 
 function commands.path() project.path() end
-function commands.save(p, dev) project.save(p, dev) end
+function commands.save(p, ...) project.save(p, ...) end
 function commands.remove(p) project.remove(p) end
 function commands.restore(force) project.restore(force) end
-function commands.run(s) project.run(s) end
+function commands.run(...) project.run(...) end
 
 -- Main entry
 local cmd = arg[1]
@@ -646,8 +659,8 @@ elseif cmd == "restore" then commands.restore(arg[2] == "--force")
 elseif cmd == "remove" then commands.remove(arg[2])
 elseif cmd == "implode" then commands.implode()
 
-elseif cmd == "run" then commands.run(arg[2])
-elseif commands[cmd] then commands[cmd](arg[2], arg[3])
-elseif cmd == "save-dev" then commands.save(arg[2], true)
+elseif cmd == "run" then commands.run(table.unpack(arg, 2))
+elseif cmd == "save-dev" then commands.save(arg[2], true, table.unpack(arg, 3))
+elseif commands[cmd] then commands[cmd](table.unpack(arg, 2))
 elseif cmd == "--version" or cmd == "-v" then commands.version()
 else print(colors.red .. "Unknown command: " .. cmd .. colors.reset); help(); os.exit(1) end

@@ -33,6 +33,9 @@ rock init
 # Install a dependency
 rock save dkjson@^2.1
 
+# Install a dependency with custom compilation flags (e.g., database drivers)
+rock save rio MYSQL_INCDIR=/usr/include/mysql
+
 # Install a development dependency
 rock save-dev busted
 
