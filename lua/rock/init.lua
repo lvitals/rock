@@ -7,9 +7,6 @@ local function setup_path()
         local src = debug.getinfo(1, "S").source
         if src:sub(1,1) == "@" then
             rock_path = src:sub(2)
-        else
-            local home = os.getenv("HOME")
-            if home then rock_path = home .. "/.rock/lua/rock/init.lua" end
         end
     end
     
@@ -19,6 +16,8 @@ local function setup_path()
     end
 end
 setup_path()
+
+-- ... (código intermediário omitido para o replace funcionar corretamente, mas mantendo a estrutura)
 
 local utils = require("lua.rock.utils")
 local colors = utils.colors
@@ -57,10 +56,14 @@ local function load_versions_db()
     return dkjson.decode(content) or { sources = {}, manuals = {}, luarocks = {} }
 end
 local function save_versions_db(db)
-    local f = io.open(get_versions_db_path(), "w")
+    local path = get_versions_db_path()
+    local dir = path:match("(.*)/")
+    os.execute("mkdir -p " .. dir)
+    local f = io.open(path, "w")
     if not f then return false end
-    f:write(dkjson.encode(db, { indent = true })); f:close()
-    return true
+    local ok = f:write(dkjson.encode(db, { indent = true }))
+    f:close()
+    return ok ~= nil
 end
 
 local function get_real_path(path)
@@ -159,20 +162,23 @@ function commands.version() print("rock version " .. ROCK_VERSION) end
 function commands.update()
     io.stderr:write("Updating versions database...\n")
     local data, rocks
-    
+
     spinner("echo 'fetching'", "Syncing with lua.org and GitHub")
     data = remote.fetch_versions()
     rocks = remote.fetch_luarocks_releases()
-    
+
     if data then
         data.luarocks = rocks or {}
-        save_versions_db(data)
-        print(colors.green .. "✓ Successfully updated versions database." .. colors.reset)
+        if save_versions_db(data) then
+            print(colors.green .. "✓ Successfully updated versions database." .. colors.reset)
+        else
+            print(colors.red .. "Error: Failed to save versions database to " .. get_versions_db_path() .. colors.reset)
+            print(colors.yellow .. "Check if you have write permissions for " .. os.getenv("HOME") .. "/.rock or try running with sudo." .. colors.reset)
+        end
     else
         print(colors.red .. "Error: Failed to fetch versions." .. colors.reset)
     end
 end
-
 
 function commands.about()
     local db = load_versions_db()
@@ -294,7 +300,12 @@ commands["upgrade-rocks"] = function()
 
     print("Upgrading LuaRocks to " .. colors.bold_white .. latest .. colors.reset .. "...")
     local build_dir = os.getenv("HOME") .. "/.rock/luarocks/build-latest"
-    os.execute("rm -rf " .. build_dir .. " && mkdir -p " .. build_dir)
+    if not os.execute("mkdir -p " .. build_dir) then
+        print(colors.red .. "Error: Failed to create build directory " .. build_dir .. colors.reset)
+        print(colors.yellow .. "Try running with sudo or check your permissions for " .. os.getenv("HOME") .. "/.rock" .. colors.reset)
+        return
+    end
+    os.execute("rm -rf " .. build_dir .. "/*")
     
     local tarball_path = build_dir .. "/src.tar.gz"
     print("Downloading: " .. rel.tarball)
@@ -315,11 +326,16 @@ commands["upgrade-rocks"] = function()
     
     print("Building and installing...")
     if os.execute(cmd) then 
-        os.execute("mkdir -p " .. os.getenv("HOME") .. "/.rock/bin")
+        if not os.execute("mkdir -p " .. os.getenv("HOME") .. "/.rock/bin") then
+            print(colors.red .. "Error: Failed to create " .. os.getenv("HOME") .. "/.rock/bin" .. colors.reset)
+            print(colors.yellow .. "Try running with sudo." .. colors.reset)
+            return
+        end
         os.execute("ln -sf " .. inst_path .. "/bin/luarocks " .. os.getenv("HOME") .. "/.rock/bin/luarocks")
         print(colors.bold_green .. "✓ LuaRocks successfully upgraded to " .. latest .. "." .. colors.reset) 
     else
         print(colors.red .. "Error: Failed to build/install LuaRocks." .. colors.reset)
+        print(colors.yellow .. "Check if you have build dependencies installed and write permissions for " .. inst_path .. colors.reset)
     end
 end
 
@@ -428,7 +444,7 @@ function commands.init(mode)
             end
         end
     elseif mode == "-" then
-        local bin_path = os.getenv("HOME") .. "/.rock/bin/rock-bin"
+        local bin_path = "rock-bin"
         
         -- Hook directory changes for auto-switch
         print("cd() {")
@@ -573,7 +589,7 @@ function commands.install(v, v2)
 end
 
 function commands.implode()
-    io.stderr:write(colors.yellow .. "WARNING: This will remove Rock and all its managed files." .. colors.reset .. "\n")
+    io.stderr:write(colors.yellow .. "WARNING: This will remove Rock configuration and managed versions." .. colors.reset .. "\n")
     io.stderr:write("Are you sure? (y/N): ")
     local answer = io.read()
     if not answer or answer:lower() ~= "y" then
@@ -582,38 +598,43 @@ function commands.implode()
     end
 
     local home = os.getenv("HOME")
-    if not home then
-        io.stderr:write(colors.red .. "Error: HOME environment variable not set." .. colors.reset .. "\n")
-        return
-    end
     
-    -- 1. Remove shell profile entries
+    -- 1. Check if installed via LuaRocks
+    local is_luarocks = false
+    local handle = io.popen("which rock 2>/dev/null")
+    local rock_path = handle:read("*a")
+    handle:close()
+    if rock_path and not rock_path:match(home .. "/.rock") then
+        is_luarocks = true
+    end
+
+    -- 2. Remove shell profile entries
     local profiles = { home .. "/.bashrc", home .. "/.zshrc", home .. "/.profile" }
     for _, profile in ipairs(profiles) do
         local f = io.open(profile, "r")
         if f then
             local content = f:read("*a")
             f:close()
-            -- Remove block between # rock configuration and # end rock configuration
-            -- Using [%s%S]- to match across newlines and handling potential double newlines
             local new_content = content:gsub("\n?# rock configuration[%s%S]-# end rock configuration\n?", "")
-            
             if new_content ~= content then
                 local fw = io.open(profile, "w")
-                if fw then
-                    fw:write(new_content)
-                    fw:close()
-                    io.stderr:write(colors.green .. "✓ Cleaned up " .. profile .. colors.reset .. "\n")
-                end
+                if fw then fw:write(new_content); fw:close() end
             end
         end
     end
 
-    -- 2. Remove ROCK_ROOT
+    -- 3. Remove ROCK_ROOT
     os.execute("rm -rf " .. home .. "/.rock")
 
-    io.stderr:write(colors.bold_green .. "Rock has been successfully uninstalled." .. colors.reset .. "\n")
+    if is_luarocks then
+        io.stderr:write(colors.bold_cyan .. "\nLocal data removed, but Rock is installed globally via LuaRocks." .. colors.reset .. "\n")
+        io.stderr:write("To fully remove the executable, run: " .. colors.yellow .. "sudo luarocks remove rock" .. colors.reset .. "\n")
+    else
+        io.stderr:write(colors.bold_green .. "Rock has been successfully uninstalled." .. colors.reset .. "\n")
+    end
     print("eval: unset -f rock")
+    print("eval: unset -f luarocks")
+    print("eval: unset -f lua")
 end
 
 commands["auto-switch"] = function()

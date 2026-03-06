@@ -22,20 +22,7 @@ int main(int argc, char *argv[]) {
     lua_setglobal(L, "arg");
 
     // Load main logic
-    // In production, this would look in a fixed path like ~/.rock/lua/init.lua
-    // For development, we'll look in the current folder.
-    const char *bootstrap = 
-        "local path = os.getenv('ROCK_PATH')\n"
-        "if not path then\n"
-        "  local home = os.getenv('HOME')\n"
-        "  path = (home and home .. '/.rock/lua/rock/init.lua') or './lua/rock/init.lua'\n"
-        "end\n"
-        "local f, err = loadfile(path)\n"
-        "if not f then\n"
-        "  io.stderr:write('Rock Error: ' .. err .. '\\n')\n"
-        "  os.exit(1)\n"
-        "end\n"
-        "f()";
+    const char *bootstrap = "require('lua.rock.init')";
 
     if (luaL_dostring(L, bootstrap)) {
         fprintf(stderr, "Fatal: %s\n", lua_tostring(L, -1));
