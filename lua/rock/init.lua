@@ -604,10 +604,24 @@ function commands.remove(package)
     end
 end
 
-function commands.install(v, v2, v3)
-    local force = (v == "--force" or v2 == "--force" or v3 == "--force")
-    local verbose = (v == "--verbose" or v == "-v" or v2 == "--verbose" or v2 == "-v" or v3 == "--verbose" or v3 == "-v")
-    local version = (v and v:sub(1,1) ~= "-") and v or nil
+function commands.install(...)
+    local args = {...}
+    local force = false
+    local verbose = false
+    local version = nil
+    local extra_flags = ""
+
+    for _, a in ipairs(args) do
+        if a == "--force" then
+            force = true
+        elseif a == "--verbose" or a == "-v" then
+            verbose = true
+        elseif not version and a:sub(1,1) ~= "-" then
+            version = a
+        else
+            extra_flags = extra_flags .. " " .. a
+        end
+    end
 
     if not version then
         -- No version provided, check for rock.toml and restore project
@@ -651,7 +665,7 @@ function commands.install(v, v2, v3)
         local f_lr = io.open(internal_lr, "r")
         if f_lr then f_lr:close(); lr_bin = internal_lr end
 
-        local lr_cmd = env_prefix .. lr_bin .. " --lua-version=" .. lv .. " --lua-dir=" .. ld .. " --tree=" .. ld .. " install " .. version .. force_flag
+        local lr_cmd = env_prefix .. lr_bin .. " --lua-version=" .. lv .. " --lua-dir=" .. ld .. " --tree=" .. ld .. " install " .. version .. force_flag .. extra_flags
         if verbose then lr_cmd = lr_cmd .. " --verbose" end
 
         if spinner(lr_cmd, "Installing global package '" .. version .. "'", verbose) then
@@ -662,7 +676,7 @@ function commands.install(v, v2, v3)
             os.exit(1)
         end
         return
-        end    local v_dir = os.getenv("HOME") .. "/.rock/versions"
+    end    local v_dir = os.getenv("HOME") .. "/.rock/versions"
     local prefix = is_refman and "refman-" or "lua-"
     local tarball = v_dir .. "/" .. prefix .. v_clean .. ".tar.gz"
     local inst_path = v_dir .. "/" .. prefix .. v_clean
