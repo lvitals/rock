@@ -68,15 +68,15 @@ end
 
 local function ensure_pc_files(root, ver)
     local dir = root .. "/lib/pkgconfig"
-    if io.open(dir .. "/lua.pc") then return end
     os.execute("mkdir -p " .. dir)
     local f = io.open(dir .. "/lua.pc", "w")
     if not f then return end
-    f:write("prefix="..root.."\nlibdir=${prefix}/lib\nincludedir=${prefix}/include\nName: Lua\nVersion: "..ver.."\nLibs: -L${libdir} -llua -lm -ldl\nCflags: -I${includedir}\n")
+    f:write("prefix="..root.."\nlibdir=${prefix}/lib\nincludedir=${prefix}/include\nName: Lua\nDescription: Lua Language\nVersion: "..ver.."\nLibs: -L${libdir} -llua -lm -ldl\nCflags: -I${includedir}\n")
     f:close()
     local v = ver:match("%d+%.%d+")
-    for _, s in ipairs(v and {v, "-"..v, v:gsub("%.",""), "-"..v:gsub("%.","")} or {}) do
-        os.execute(("ln -sf lua.pc %s/lua%s.pc"):format(dir, s))
+    if v then
+        local names = {v, "-"..v, v:gsub("%.",""), "-"..v:gsub("%.","")}
+        for _, s in ipairs(names) do os.execute(("ln -sf lua.pc %s/lua%s.pc 2>/dev/null"):format(dir, s)) end
     end
 end
 
@@ -420,7 +420,8 @@ function commands.use(v, sv)
             print("eval: export LUA_CPATH=\"" .. final_global_lua_cpath .. "\"")
             print("eval: export PATH=\"" .. new_path .. "\"")
             print("eval: export MANPATH=\"" .. version_root .. "/share/man:" .. (os.getenv("MANPATH") or "") .. "\"")
-            print("eval: export PKG_CONFIG_PATH=\"" .. version_root .. "/lib/pkgconfig:" .. (os.getenv("PKG_CONFIG_PATH") or "") .. "\"")
+            local old_pc = os.getenv("PKG_CONFIG_PATH")
+            print("eval: export PKG_CONFIG_PATH=\"" .. version_root .. "/lib/pkgconfig" .. (old_pc and (":" .. old_pc) or "") .. "\"")
         end
         
         print("eval: export LUA_VERSION=\"" .. v .. "\"")
@@ -517,6 +518,7 @@ function commands.init(mode)
         print("            export LUA_LIBDIR=\"$ld/lib\"")
         print("            export LUA_BINDIR=\"$ld/bin\"")
         print("            export LUA_DIR=\"$ld\"")
+        print("            export PKG_CONFIG_PATH=\"$ld/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}\"")
         print("            export CFLAGS=\"-I$ld/include $CFLAGS\"")
         print("            export LDFLAGS=\"-L$ld/lib -Wl,-E $LDFLAGS\"")
         print("            export LIBS=\"-llua -lm -ldl\"")
@@ -570,8 +572,9 @@ function commands.install(v, v2)
         local lv = lua_v:match("^(%d+%.%d+)")
         local ld = os.getenv("HOME") .. "/.rock/versions/lua-" .. lua_v
         local pc_path = ld .. "/lib/pkgconfig"
+        local old_pc = os.getenv("PKG_CONFIG_PATH") or ""
         local env_prefix = string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q PKG_CONFIG_PATH=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E -llua $LDFLAGS\" LIBS=\"-llua -lm -ldl\" LUA_LIBS=\"-llua -lm -ldl\" LUA_LIB=\"-llua\" ",
-            ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. ":" .. (os.getenv("PKG_CONFIG_PATH") or ""), ld, ld)
+            ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. (old_pc ~= "" and (":" .. old_pc) or ""), ld, ld)
             
         local force_flag = force and " --force" or ""
         local lr_cmd = env_prefix .. "luarocks --lua-version=" .. lv .. " --lua-dir=" .. ld .. " --tree=" .. ld .. " install " .. version .. force_flag
@@ -621,11 +624,12 @@ function commands.implode()
     
     -- 1. Check if installed via LuaRocks
     local is_luarocks = false
-    local handle = io.popen("which rock 2>/dev/null")
-    local rock_path = handle:read("*a")
-    handle:close()
-    if rock_path and not rock_path:match(home .. "/.rock") then
-        is_luarocks = true
+    local src = debug.getinfo(1, "S").source
+    if src:sub(1,1) == "@" then
+        local path = src:sub(2)
+        if not path:match(home .. "/%.rock") then
+            is_luarocks = true
+        end
     end
 
     -- 2. Remove shell profile entries

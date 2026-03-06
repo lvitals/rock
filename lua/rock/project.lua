@@ -200,8 +200,9 @@ function project.save(package_arg, ...)
             io.open(ld .. "/bin/lua", "r"):close()
             lua_dir_flag = " --lua-dir=" .. ld
             local pc_path = ld .. "/lib/pkgconfig"
+            local old_pc = os.getenv("PKG_CONFIG_PATH") or ""
             env_prefix = string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q PKG_CONFIG_PATH=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E -llua $LDFLAGS\" LIBS=\"-llua -lm -ldl\" LUA_LIBS=\"-llua -lm -ldl\" LUA_LIB=\"-llua\" ",
-                ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. ":" .. (os.getenv("PKG_CONFIG_PATH") or ""), ld, ld)
+                ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. (old_pc ~= "" and (":" .. old_pc) or ""), ld, ld)
         end
     end
 
@@ -326,8 +327,9 @@ function project.restore(force)
             io.open(ld .. "/bin/lua", "r"):close()
             lua_dir_flag = " --lua-dir=" .. ld
             local pc_path = ld .. "/lib/pkgconfig"
+            local old_pc = os.getenv("PKG_CONFIG_PATH") or ""
             env_prefix = string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q PKG_CONFIG_PATH=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E -llua $LDFLAGS\" LIBS=\"-llua -lm -ldl\" LUA_LIBS=\"-llua -lm -ldl\" LUA_LIB=\"-llua\" ",
-                ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. ":" .. (os.getenv("PKG_CONFIG_PATH") or ""), ld, ld)
+                ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. (old_pc ~= "" and (":" .. old_pc) or ""), ld, ld)
         end
     end
 
