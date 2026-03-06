@@ -496,8 +496,11 @@ function commands.install(v, v2)
     for _ in pairs(db.sources) do has_versions = true; break end
     if not has_versions then
         print(colors.red .. "Error: Local versions database is empty." .. colors.reset)
-        print("Please run " .. colors.bold_white .. "rock update" .. colors.reset .. " first to sync available Lua versions.")
-        return
+        print("Please prepare your environment by running:\n")
+        print("  " .. colors.bold_white .. "$ rock update && rock upgrade-rocks" .. colors.reset)
+        print("  " .. colors.bold_white .. "$ rock install " .. (version or "5.4.7") .. colors.reset)
+        print("  " .. colors.bold_white .. "$ rock use " .. (version or "5.4.7") .. colors.reset .. "\n")
+        os.exit(1)
     end
 
     local expected_sum = is_refman and db.manuals[v_clean] or db.sources[v_clean]
@@ -606,7 +609,10 @@ commands["auto-switch"] = function()
             end
         else
             io.stderr:write(colors.red .. "Error: Lua version " .. v .. " (required by rock.toml) is not installed.\n" .. colors.reset)
-            io.stderr:write(colors.yellow .. "Try running: rock install\n" .. colors.reset)
+            io.stderr:write(colors.yellow .. "To set up your environment, please run:\n" .. colors.reset)
+            io.stderr:write("  " .. colors.bold_white .. "$ rock update && rock upgrade-rocks\n" .. colors.reset)
+            io.stderr:write("  " .. colors.bold_white .. "$ rock install " .. v .. "\n" .. colors.reset)
+            io.stderr:write("  " .. colors.bold_white .. "$ rock install\n" .. colors.reset)
             os.exit(1)
         end
     end

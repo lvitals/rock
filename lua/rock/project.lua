@@ -198,8 +198,11 @@ function project.restore(force)
         if active_v and active_v ~= data.lua and not force then
             io.stderr:write(colors.red .. "Error: Version mismatch.\n" .. colors.reset)
             io.stderr:write("Project requires Lua " .. colors.bold_white .. data.lua .. colors.reset .. " but you are using " .. colors.bold_white .. active_v .. colors.reset .. ".\n")
-            io.stderr:write(colors.yellow .. "Please run: rock use " .. data.lua .. " first.\n" .. colors.reset)
-            io.stderr:write(colors.dim .. "(Or use --force to install anyway)\n" .. colors.reset)
+            io.stderr:write(colors.yellow .. "To set up your environment, please run:\n" .. colors.reset)
+            io.stderr:write("  " .. colors.bold_white .. "$ rock update && rock upgrade-rocks\n" .. colors.reset)
+            io.stderr:write("  " .. colors.bold_white .. "$ rock install " .. data.lua .. "\n" .. colors.reset)
+            io.stderr:write("  " .. colors.bold_white .. "$ rock use " .. data.lua .. "\n" .. colors.reset)
+            io.stderr:write(colors.dim .. "(Or use --force to bypass this check)\n" .. colors.reset)
             os.exit(1)
         end
 
@@ -391,7 +394,10 @@ function project.run(script_name)
         local f_lua = io.open(lua_bin, "r")
         if not f_lua then
             io.stderr:write(colors.red .. "Error: Lua version " .. data.lua .. " (required by rock.toml) is not installed.\n" .. colors.reset)
-            io.stderr:write(colors.yellow .. "Run 'rock install' to fix this.\n" .. colors.reset)
+            io.stderr:write(colors.yellow .. "To set up your environment, please run:\n" .. colors.reset)
+            io.stderr:write("  " .. colors.bold_white .. "$ rock update && rock upgrade-rocks\n" .. colors.reset)
+            io.stderr:write("  " .. colors.bold_white .. "$ rock install " .. data.lua .. "\n" .. colors.reset)
+            io.stderr:write("  " .. colors.bold_white .. "$ rock install\n" .. colors.reset)
             os.exit(1)
         else
             f_lua:close()
