@@ -420,6 +420,11 @@ function commands.init(mode)
                 print("export LUA_VERSION=" .. q(v))
                 print(string.format("export LUA_PATH=%q", version_root .. "/share/lua/" .. lv .. "/?.lua;" .. version_root .. "/share/lua/" .. lv .. "/?/init.lua;;"))
                 print(string.format("export LUA_CPATH=%q", version_root .. "/lib/lua/" .. lv .. "/?.so;;"))
+                
+                -- Construct path by stripping old version paths and prepending new one
+                local current_path = os.getenv("PATH") or ""
+                local cleaned_path = current_path:gsub("[^:]*/%.rock/versions/[^:]*/bin:?", "")
+                print(string.format("export PATH=%q", version_root .. "/bin:" .. cleaned_path))
             end
         end
     elseif mode == "-" then
