@@ -297,16 +297,24 @@ function project.restore(force, verbose)
 
     -- 2. Restore packages
     local deps_to_install = {}
-    if lock_data and lock_data.dependencies then
+    local lock_has_deps = false
+    if lock_data and lock_data.dependencies and next(lock_data.dependencies) then
+        lock_has_deps = true
         print("Restoring dependencies from rock.lock...")
         for name, info in pairs(lock_data.dependencies) do
-            table.insert(deps_to_install, { name = name, version = info.version })
+            if type(info) == "table" then
+                table.insert(deps_to_install, { name = name, version = info.version })
+            else
+                table.insert(deps_to_install, { name = name, version = info })
+            end
         end
-    else
-        print("No rock.lock found. Installing from rock.toml...")
+    end
+
+    if not lock_has_deps then
+        print("No dependencies found in rock.lock (or file missing). Checking rock.toml...")
         local sections = {"dependencies", "devDependencies"}
         for _, section in ipairs(sections) do
-            if data[section] then
+            if data[section] and type(data[section]) == "table" then
                 for name, ver in pairs(data[section]) do
                     table.insert(deps_to_install, { name = name, version = ver })
                 end
@@ -361,7 +369,16 @@ function project.restore(force, verbose)
 
             spinner(cmd, "  Installing " .. dep.name .. (dep.version ~= "latest" and (" (" .. dep.version .. ")") or ""), verbose)
         end
-        print("Done restoring dependencies.")
+
+        -- Update rock.lock with exact versions after restoration
+        local final_lock_data = { lua = data.lua, dependencies = {} }
+        for _, dep in ipairs(deps_to_install) do
+            local exact = get_installed_version(dep.name)
+            final_lock_data.dependencies[dep.name] = { version = exact or dep.version }
+        end
+        write_toml("rock.lock", final_lock_data)
+
+        print("Done restoring dependencies and updated rock.lock.")
         print("eval: hash -r 2>/dev/null || true")
     end
 end
