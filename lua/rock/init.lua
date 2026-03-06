@@ -3,6 +3,16 @@ local ROCK_VERSION = "0.1.0"
 
 local function setup_path()
     local rock_path = os.getenv("ROCK_PATH")
+    if not rock_path then
+        local src = debug.getinfo(1, "S").source
+        if src:sub(1,1) == "@" then
+            rock_path = src:sub(2)
+        else
+            local home = os.getenv("HOME")
+            if home then rock_path = home .. "/.rock/lua/rock/init.lua" end
+        end
+    end
+    
     if rock_path then
         local base = rock_path:match("(.*)/lua/rock/init.lua")
         if base then package.path = base .. "/?.lua;" .. base .. "/?/init.lua;" .. package.path end

@@ -125,4 +125,6 @@ fi
 echo ""
 echo "=== Rock installed successfully in $BIN_DIR/rock-bin ==="
 echo "Please restart your terminal or run: source $SHELL_PROFILE"
+echo "To finish setting up your environment, run:"
+echo "  rock update && rock upgrade-rocks"
 echo "Try running: rock --version"
