@@ -199,8 +199,9 @@ function project.save(package_arg, ...)
         if io.open(ld .. "/bin/lua", "r") then
             io.open(ld .. "/bin/lua", "r"):close()
             lua_dir_flag = " --lua-dir=" .. ld
-            env_prefix = string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E $LDFLAGS\" ",
-                ld .. "/include", ld .. "/lib", ld .. "/bin", ld, ld, ld)
+            local pc_path = ld .. "/lib/pkgconfig"
+            env_prefix = string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q PKG_CONFIG_PATH=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E -llua $LDFLAGS\" LIBS=\"-llua -lm -ldl\" LUA_LIBS=\"-llua -lm -ldl\" LUA_LIB=\"-llua\" ",
+                ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. ":" .. (os.getenv("PKG_CONFIG_PATH") or ""), ld, ld)
         end
     end
 
@@ -324,8 +325,9 @@ function project.restore(force)
         if io.open(ld .. "/bin/lua", "r") then
             io.open(ld .. "/bin/lua", "r"):close()
             lua_dir_flag = " --lua-dir=" .. ld
-            env_prefix = string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E $LDFLAGS\" ",
-                ld .. "/include", ld .. "/lib", ld .. "/bin", ld, ld, ld)
+            local pc_path = ld .. "/lib/pkgconfig"
+            env_prefix = string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q PKG_CONFIG_PATH=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E -llua $LDFLAGS\" LIBS=\"-llua -lm -ldl\" LUA_LIBS=\"-llua -lm -ldl\" LUA_LIB=\"-llua\" ",
+                ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. ":" .. (os.getenv("PKG_CONFIG_PATH") or ""), ld, ld)
         end
     end
 

@@ -66,6 +66,20 @@ local function save_versions_db(db)
     return ok ~= nil
 end
 
+local function ensure_pc_files(root, ver)
+    local dir = root .. "/lib/pkgconfig"
+    if io.open(dir .. "/lua.pc") then return end
+    os.execute("mkdir -p " .. dir)
+    local f = io.open(dir .. "/lua.pc", "w")
+    if not f then return end
+    f:write("prefix="..root.."\nlibdir=${prefix}/lib\nincludedir=${prefix}/include\nName: Lua\nVersion: "..ver.."\nLibs: -L${libdir} -llua -lm -ldl\nCflags: -I${includedir}\n")
+    f:close()
+    local v = ver:match("%d+%.%d+")
+    for _, s in ipairs(v and {v, "-"..v, v:gsub("%.",""), "-"..v:gsub("%.","")} or {}) do
+        os.execute(("ln -sf lua.pc %s/lua%s.pc"):format(dir, s))
+    end
+end
+
 local function get_real_path(path)
     if not path or path == "" then return nil end
     local handle = io.popen("readlink -f " .. path .. " 2>/dev/null")
@@ -353,6 +367,8 @@ function commands.use(v, sv)
     local r_v_p = os.getenv("HOME") .. "/.rock/versions/lua-" .. v .. "/bin"
     if io.open(r_v_p .. "/lua", "r") then
         io.open(r_v_p .. "/lua", "r"):close(); found_path = r_v_p; set_links(r_v_p .. "/lua")
+        -- Ensure .pc files exist for the version being used
+        ensure_pc_files(os.getenv("HOME") .. "/.rock/versions/lua-" .. v, v)
     else
         -- 2. Check System
         local sys = get_all_system_luas(); local target = (v == "system") and sv or v
@@ -404,6 +420,7 @@ function commands.use(v, sv)
             print("eval: export LUA_CPATH=\"" .. final_global_lua_cpath .. "\"")
             print("eval: export PATH=\"" .. new_path .. "\"")
             print("eval: export MANPATH=\"" .. version_root .. "/share/man:" .. (os.getenv("MANPATH") or "") .. "\"")
+            print("eval: export PKG_CONFIG_PATH=\"" .. version_root .. "/lib/pkgconfig:" .. (os.getenv("PKG_CONFIG_PATH") or "") .. "\"")
         end
         
         print("eval: export LUA_VERSION=\"" .. v .. "\"")
@@ -552,8 +569,9 @@ function commands.install(v, v2)
         print("Installing global package '" .. version .. "' for Lua " .. lua_v .. "...")
         local lv = lua_v:match("^(%d+%.%d+)")
         local ld = os.getenv("HOME") .. "/.rock/versions/lua-" .. lua_v
-        local env_prefix = string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E $LDFLAGS\" ",
-            ld .. "/include", ld .. "/lib", ld .. "/bin", ld, ld, ld)
+        local pc_path = ld .. "/lib/pkgconfig"
+        local env_prefix = string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q PKG_CONFIG_PATH=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E -llua $LDFLAGS\" LIBS=\"-llua -lm -ldl\" LUA_LIBS=\"-llua -lm -ldl\" LUA_LIB=\"-llua\" ",
+            ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. ":" .. (os.getenv("PKG_CONFIG_PATH") or ""), ld, ld)
             
         local force_flag = force and " --force" or ""
         local lr_cmd = env_prefix .. "luarocks --lua-version=" .. lv .. " --lua-dir=" .. ld .. " --tree=" .. ld .. " install " .. version .. force_flag
@@ -575,7 +593,9 @@ function commands.install(v, v2)
         if os.execute(check_sum_cmd .. " > /dev/null 2>&1") then
             if not is_refman then
                 local build_cmd = "cd " .. v_dir .. " && tar -xzf " .. tarball .. " && cd lua-" .. v_clean .. " && make linux MYCFLAGS='-fPIC' && make install INSTALL_TOP=" .. inst_path
-                if spinner(build_cmd, "Building and Installing Lua " .. v_clean) then                    print(colors.bold_green .. "✓ Successfully installed Lua " .. v_clean .. " at " .. inst_path .. colors.reset) 
+                if spinner(build_cmd, "Building and Installing Lua " .. v_clean) then
+                    ensure_pc_files(inst_path, v_clean)
+                    print(colors.bold_green .. "✓ Successfully installed Lua " .. v_clean .. " at " .. inst_path .. colors.reset) 
                 else
                     print(colors.red .. "Error: Failed to build Lua " .. v_clean .. colors.reset)
                 end
