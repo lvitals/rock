@@ -1,5 +1,5 @@
 -- rock/init.lua - Core dispatcher for the rock CLI
-local ROCK_VERSION = "0.1.1"
+local ROCK_VERSION = "0.1.2"
 
 local function setup_path()
     local rock_path = os.getenv("ROCK_PATH")
