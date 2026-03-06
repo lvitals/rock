@@ -12,21 +12,25 @@ function utils.spinner(cmd, message)
     local i = 1
     
     local tmp_out = os.tmpname()
+    local exit_file = tmp_out .. ".exit"
+    
     -- Execute command in background and save its exit code
-    local full_cmd = "(" .. cmd .. ") > " .. tmp_out .. " 2>&1; echo $? > " .. tmp_out .. ".exit"
-    os.execute(full_cmd .. " &")
+    local full_cmd = "{ (" .. cmd .. "); echo $? > " .. exit_file .. "; } > " .. tmp_out .. " 2>&1 &"
+    os.execute(full_cmd)
     
     local success = nil
     while success == nil do
-        io.stderr:write("\r" .. colors.bold_cyan .. frames[i] .. colors.reset .. " " .. message)
+        -- Use io.stderr to bypass the shell wrapper's stdout capture
+        io.stderr:write("\r" .. colors.bold_cyan .. frames[i] .. colors.reset .. " " .. message .. "   ")
+        io.stderr:flush()
         i = (i % #frames) + 1
         
         -- Check if command finished
-        local f_exit = io.open(tmp_out .. ".exit", "r")
+        local f_exit = io.open(exit_file, "r")
         if f_exit then
-            local code = f_exit:read("*a"):gsub("%s+", "")
+            local code = f_exit:read("*a"):match("(%d+)")
             f_exit:close()
-            if code ~= "" then
+            if code then
                 success = (code == "0")
             end
         end
@@ -36,20 +40,21 @@ function utils.spinner(cmd, message)
         end
     end
     
-    -- Clear line and show final status
-    io.stderr:write("\r" .. (success and (colors.bold_green .. "✓") or (colors.red .. "✗")) .. " " .. message .. string.rep(" ", 20) .. "\n")
+    -- Clear line and show final status on stderr
+    io.stderr:write("\r" .. (success and (colors.bold_green .. "✓") or (colors.red .. "✗")) .. " " .. message .. string.rep(" ", 10) .. "\n")
+    io.stderr:flush()
     
     if not success then
         local f_out = io.open(tmp_out, "r")
         if f_out then
             local out = f_out:read("*a")
             f_out:close()
-            print(out)
+            if out ~= "" then io.stderr:write(out .. "\n") end
         end
     end
     
     os.remove(tmp_out)
-    os.remove(tmp_out .. ".exit")
+    os.remove(exit_file)
     
     return success
 end

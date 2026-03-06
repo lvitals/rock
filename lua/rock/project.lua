@@ -333,11 +333,19 @@ function project.restore(force)
         end
     end
 
-    if #deps_to_install == 0 then        print("No dependencies to install.")
+    if #deps_to_install == 0 then
+        print("No dependencies to install.")
     else
         local modules_path = get_modules_path()
         local rc = read_rockrc()
         print(string.format("Installing %d dependencies...", #deps_to_install))
+        
+        -- Use internal luarocks if available
+        local lr_bin = "luarocks"
+        local internal_lr = os.getenv("HOME") .. "/.rock/bin/luarocks"
+        local f_lr = io.open(internal_lr, "r")
+        if f_lr then f_lr:close(); lr_bin = internal_lr end
+
         for _, dep in ipairs(deps_to_install) do
             local ver_cmd = ""
             if dep.version ~= "latest" then
@@ -347,10 +355,13 @@ function project.restore(force)
             local extra_args = rc.pkg_flags[dep.name] or ""
             if extra_args ~= "" then extra_args = " " .. extra_args end
 
-            local cmd = env_prefix .. "luarocks" .. lua_ver_flag .. lua_dir_flag .. " install --tree=" .. modules_path .. " " .. force_flag .. dep.name .. " " .. ver_cmd .. extra_args
+            -- Optimized command with better dependency handling and standard server
+            local cmd = env_prefix .. lr_bin .. lua_ver_flag .. lua_dir_flag .. " install --server=https://luarocks.org --tree=" .. modules_path .. " " .. force_flag .. "--deps-mode=all " .. dep.name .. " " .. ver_cmd .. extra_args
 
-            spinner(cmd, "  Installing " .. dep.name .. (dep.version ~= "latest" and (" (" .. dep.version .. ")") or ""))        end
+            spinner(cmd, "  Installing " .. dep.name .. (dep.version ~= "latest" and (" (" .. dep.version .. ")") or ""))
+        end
         print("Done restoring dependencies.")
+        print("eval: hash -r 2>/dev/null || true")
     end
 end
 
@@ -443,11 +454,28 @@ function project.path(base_path, global_lua_path, global_lua_cpath)
         lib_h:close()
     end
 
-    local final_lua_path = local_lua_path .. (global_lua_path or os.getenv("LUA_PATH") or "")
-    if not final_lua_path:match(";;$") then final_lua_path = final_lua_path .. ";;" end
+    -- Clean up any existing rock-managed paths to prevent version bleed (e.g., 5.4.7 mixed with 5.4.8)
+    local current_lua_path = os.getenv("LUA_PATH") or ""
+    current_lua_path = current_lua_path:gsub("[^;]*/%.rock/versions/[^;]*/share/lua/[^;]*/%?.lua;?", "")
+    current_lua_path = current_lua_path:gsub("[^;]*/%.rock/versions/[^;]*/share/lua/[^;]*/%?/init.lua;?", "")
+    current_lua_path = current_lua_path:gsub("[^;]*/lua_modules/share/lua/[^;]*/%?.lua;?", "")
+    current_lua_path = current_lua_path:gsub("[^;]*/lua_modules/share/lua/[^;]*/%?/init.lua;?", "")
+
+    local current_lua_cpath = os.getenv("LUA_CPATH") or ""
+    current_lua_cpath = current_lua_cpath:gsub("[^;]*/%.rock/versions/[^;]*/lib/lua/[^;]*/%?.so;?", "")
+    current_lua_cpath = current_lua_cpath:gsub("[^;]*/lua_modules/lib/lua/[^;]*/%?.so;?", "")
+
+    local final_lua_path = local_lua_path .. (global_lua_path or current_lua_path)
+    if final_lua_path ~= "" and not final_lua_path:match(";;$") then
+        if final_lua_path:sub(-1) ~= ";" then final_lua_path = final_lua_path .. ";" end
+        final_lua_path = final_lua_path .. ";"
+    end
     
-    local final_lua_cpath = local_lua_cpath .. (global_lua_cpath or os.getenv("LUA_CPATH") or "")
-    if not final_lua_cpath:match(";;$") then final_lua_cpath = final_lua_cpath .. ";;" end
+    local final_lua_cpath = local_lua_cpath .. (global_lua_cpath or current_lua_cpath)
+    if final_lua_cpath ~= "" and not final_lua_cpath:match(";;$") then
+        if final_lua_cpath:sub(-1) ~= ";" then final_lua_cpath = final_lua_cpath .. ";" end
+        final_lua_cpath = final_lua_cpath .. ";"
+    end
     
     local final_path = local_bin_dir .. ":" .. (base_path or os.getenv("PATH") or "")
 
@@ -525,9 +553,16 @@ function project.run(script_name)
     end
 
     local final_lua_path = local_lua_path .. (os.getenv("LUA_PATH") or "")
-    if not final_lua_path:match(";;$") then final_lua_path = final_lua_path .. ";;" end
+    if final_lua_path ~= "" and not final_lua_path:match(";;$") then
+        if final_lua_path:sub(-1) ~= ";" then final_lua_path = final_lua_path .. ";" end
+        final_lua_path = final_lua_path .. ";"
+    end
+    
     local final_lua_cpath = local_lua_cpath .. (os.getenv("LUA_CPATH") or "")
-    if not final_lua_cpath:match(";;$") then final_lua_cpath = final_lua_cpath .. ";;" end
+    if final_lua_cpath ~= "" and not final_lua_cpath:match(";;$") then
+        if final_lua_cpath:sub(-1) ~= ";" then final_lua_cpath = final_lua_cpath .. ";" end
+        final_lua_cpath = final_lua_cpath .. ";"
+    end
     local final_path = local_bin_dir .. ":" .. (os.getenv("PATH") or "")
 
     -- SMART EXECUTION: Determine if we should prefix with 'lua'
