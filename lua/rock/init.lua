@@ -623,14 +623,18 @@ function commands.implode()
     local home = os.getenv("HOME")
     
     -- 1. Check if installed via LuaRocks
-    local is_luarocks = false
+    local is_luarocks = true
     local src = debug.getinfo(1, "S").source
     if src:sub(1,1) == "@" then
         local path = src:sub(2)
-        if not path:match(home .. "/%.rock") then
-            is_luarocks = true
-        end
+        -- If the source is inside ~/.rock, it's a local install
+        if path:find("/%.rock/lua/rock/") then is_luarocks = false end
     end
+    
+    -- Double check with the binary path
+    local handle = io.popen("which rock-bin 2>/dev/null")
+    local bin_p = handle:read("*a"); handle:close()
+    if bin_p and bin_p:find("/%.rock/bin/") then is_luarocks = false end
 
     -- 2. Remove shell profile entries
     local profiles = { home .. "/.bashrc", home .. "/.zshrc", home .. "/.profile" }
