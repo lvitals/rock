@@ -563,6 +563,14 @@ function commands.install(v, v2)
     if not expected_sum then 
         -- If it's not a known Lua version, try to install it as a global package via LuaRocks
         local lua_v = os.getenv("LUA_VERSION")
+        local active_p = get_active_info()
+        
+        if not lua_v and active_p then
+            local h = io.popen("lua -v 2>&1")
+            lua_v = h and h:read("*a"):match("Lua (%d+%.%d+%.?%d*)")
+            if h then h:close() end
+        end
+
         if not lua_v then
             print(colors.red .. "Error: '" .. version .. "' is not a known Lua version, and no active Lua environment found to install as a package." .. colors.reset) 
             os.exit(1)
@@ -570,14 +578,28 @@ function commands.install(v, v2)
         
         print("Installing global package '" .. version .. "' for Lua " .. lua_v .. "...")
         local lv = lua_v:match("^(%d+%.%d+)")
-        local ld = os.getenv("HOME") .. "/.rock/versions/lua-" .. lua_v
+        
+        -- Determine the correct prefix (ld)
+        local ld
+        if active_p and not active_p:match("%.rock") then
+            ld = active_p:match("(.*)/bin/lua") or "/usr"
+        else
+            ld = os.getenv("HOME") .. "/.rock/versions/lua-" .. lua_v
+        end
+
         local pc_path = ld .. "/lib/pkgconfig"
         local old_pc = os.getenv("PKG_CONFIG_PATH") or ""
         local env_prefix = string.format("LUA_INCDIR=%q LUA_LIBDIR=%q LUA_BINDIR=%q LUA_DIR=%q PKG_CONFIG_PATH=%q CFLAGS=\"-I%s/include $CFLAGS\" LDFLAGS=\"-L%s/lib -Wl,-E -llua $LDFLAGS\" LIBS=\"-llua -lm -ldl\" LUA_LIBS=\"-llua -lm -ldl\" LUA_LIB=\"-llua\" ",
             ld .. "/include", ld .. "/lib", ld .. "/bin", ld, pc_path .. (old_pc ~= "" and (":" .. old_pc) or ""), ld, ld)
             
         local force_flag = force and " --force" or ""
-        local lr_cmd = env_prefix .. "luarocks --lua-version=" .. lv .. " --lua-dir=" .. ld .. " --tree=" .. ld .. " install " .. version .. force_flag
+        local lr_bin = "luarocks"
+        -- Use internal luarocks if available
+        local internal_lr = os.getenv("HOME") .. "/.rock/bin/luarocks"
+        local f_lr = io.open(internal_lr, "r")
+        if f_lr then f_lr:close(); lr_bin = internal_lr end
+
+        local lr_cmd = env_prefix .. lr_bin .. " --lua-version=" .. lv .. " --lua-dir=" .. ld .. " --tree=" .. ld .. " install " .. version .. force_flag
         
         os.execute(lr_cmd)
         return
@@ -655,8 +677,13 @@ function commands.implode()
     os.execute("rm -rf " .. home .. "/.rock")
 
     if is_luarocks then
-        io.stderr:write(colors.bold_cyan .. "\nLocal data removed, but Rock is installed globally via LuaRocks." .. colors.reset .. "\n")
-        io.stderr:write("To fully remove the executable, run: " .. colors.yellow .. "sudo luarocks remove rock" .. colors.reset .. "\n")
+        io.stderr:write("Detected LuaRocks installation. Attempting to remove package...\n")
+        if os.execute("luarocks remove rock") then
+            io.stderr:write(colors.bold_green .. "Rock package successfully removed via LuaRocks." .. colors.reset .. "\n")
+        else
+            io.stderr:write(colors.red .. "Failed to remove Rock package via LuaRocks." .. colors.reset .. "\n")
+            io.stderr:write("You might need to run: " .. colors.yellow .. "sudo luarocks remove rock" .. colors.reset .. "\n")
+        end
     else
         io.stderr:write(colors.bold_green .. "Rock has been successfully uninstalled." .. colors.reset .. "\n")
     end
