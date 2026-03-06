@@ -41,8 +41,24 @@ rock save-dev busted
 
 # Run a script defined in rock.toml
 rock run test
+
+## Configuration
+
+Rock can be configured per-project using a `.rockrc` file. This file stores build flags for specific packages and global project settings.
+
+### Custom Modules Path
+By default, Rock installs dependencies into `lua_modules`. You can change this (e.g., to `vendor`) using:
+
+```bash
+rock config modules_path vendor
 ```
+
+After changing this, run `rock install` to reinstall dependencies into the new directory.
+
+### Build Flags
+When you install a package with extra flags (like `MYSQL_INCDIR`), Rock automatically saves them to `.rockrc` so subsequent `rock install` calls on other machines will use the same flags.
 
 ## License
 
+MIT
 MIT

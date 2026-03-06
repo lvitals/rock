@@ -24,23 +24,45 @@ end
 
 local function read_rockrc()
     local f = io.open(".rockrc", "r")
-    if not f then return {} end
-    local flags = {}
+    if not f then return { configs = {}, pkg_flags = {} } end
+    local configs = {}
+    local pkg_flags = {}
     for line in f:lines() do
-        local pkg, args = line:match("^([^:]+):%s*(.*)$")
-        if pkg then flags[pkg] = args end
+        -- Check for global configs like modules_path = "vendor"
+        local key, val = line:match("^%s*([^%s:]+)%s*=%s*\"?([^\"]+)\"?$")
+        if key then
+            configs[key] = val
+        else
+            -- Check for package flags like rio: MYSQL_INCDIR=...
+            local pkg, args = line:match("^([^:]+):%s*(.*)$")
+            if pkg then pkg_flags[pkg] = args end
+        end
     end
     f:close()
-    return flags
+    return { configs = configs, pkg_flags = pkg_flags }
 end
 
-local function write_rockrc(flags)
+local function write_rockrc(data)
     local f = io.open(".rockrc", "w")
     if not f then return end
-    for pkg, args in pairs(flags) do
-        f:write(pkg .. ": " .. args .. "\n")
+    -- Write global configs first
+    if data.configs then
+        for k, v in pairs(data.configs) do
+            f:write(k .. " = " .. string.format("%q", v) .. "\n")
+        end
+    end
+    -- Write package flags
+    if data.pkg_flags then
+        for pkg, args in pairs(data.pkg_flags) do
+            f:write(pkg .. ": " .. args .. "\n")
+        end
     end
     f:close()
+end
+
+local function get_modules_path()
+    local rc = read_rockrc()
+    return rc.configs.modules_path or "lua_modules"
 end
 
 function project.init()
@@ -91,7 +113,8 @@ function project.init()
 end
 
 local function get_installed_version(package)
-    local handle = io.popen("luarocks show " .. package .. " --mversion --tree=lua_modules 2>/dev/null")
+    local modules_path = get_modules_path()
+    local handle = io.popen("luarocks show " .. package .. " --mversion --tree=" .. modules_path .. " 2>/dev/null")
     if not handle then return nil end
     local version = handle:read("*a")
     handle:close()
@@ -181,15 +204,16 @@ function project.save(package_arg, ...)
         end
     end
 
-    local cmd = env_prefix .. "luarocks" .. lua_ver_flag .. lua_dir_flag .. " install --tree=lua_modules " .. package .. (luarocks_ver ~= "" and (" " .. luarocks_ver) or "") .. extra_flags
+    local modules_path = get_modules_path()
+    local cmd = env_prefix .. "luarocks" .. lua_ver_flag .. lua_dir_flag .. " install --tree=" .. modules_path .. " " .. package .. (luarocks_ver ~= "" and (" " .. luarocks_ver) or "") .. extra_flags
     local success = spinner(cmd, "Installing " .. package .. (requested_version ~= "latest" and (" (" .. requested_version .. ")") or ""))
 
     if success then
         -- Persist flags if they were provided
         if extra_flags ~= "" then
-            local flags = read_rockrc()
-            flags[package] = extra_flags:gsub("^%s*", "")
-            write_rockrc(flags)
+            local rc = read_rockrc()
+            rc.pkg_flags[package] = extra_flags:gsub("^%s*", "")
+            write_rockrc(rc)
         end
 
         local section = is_dev and "devDependencies" or "dependencies"
@@ -307,7 +331,8 @@ function project.restore(force)
 
     if #deps_to_install == 0 then        print("No dependencies to install.")
     else
-        local rockrc_flags = read_rockrc()
+        local modules_path = get_modules_path()
+        local rc = read_rockrc()
         print(string.format("Installing %d dependencies...", #deps_to_install))
         for _, dep in ipairs(deps_to_install) do
             local ver_cmd = ""
@@ -315,10 +340,10 @@ function project.restore(force)
                 ver_cmd = dep.version:gsub("^%^", ""):gsub("^~", "")
             end
             local force_flag = force and "--force " or ""
-            local extra_args = rockrc_flags[dep.name] or ""
+            local extra_args = rc.pkg_flags[dep.name] or ""
             if extra_args ~= "" then extra_args = " " .. extra_args end
 
-            local cmd = env_prefix .. "luarocks" .. lua_ver_flag .. lua_dir_flag .. " install --tree=lua_modules " .. force_flag .. dep.name .. " " .. ver_cmd .. extra_args
+            local cmd = env_prefix .. "luarocks" .. lua_ver_flag .. lua_dir_flag .. " install --tree=" .. modules_path .. " " .. force_flag .. dep.name .. " " .. ver_cmd .. extra_args
 
             spinner(cmd, "  Installing " .. dep.name .. (dep.version ~= "latest" and (" (" .. dep.version .. ")") or ""))        end
         print("Done restoring dependencies.")
@@ -326,7 +351,8 @@ function project.restore(force)
 end
 
 local function get_env_paths()
-    local h = io.popen("luarocks path --tree=lua_modules 2>/dev/null")
+    local modules_path = get_modules_path()
+    local h = io.popen("luarocks path --tree=" .. modules_path .. " 2>/dev/null")
     if not h then return {} end
     local out = h:read("*a")
     h:close()
@@ -360,7 +386,8 @@ function project.remove(package)
         return
     end
 
-    local cmd = "luarocks remove --tree=lua_modules " .. package
+    local modules_path = get_modules_path()
+    local cmd = "luarocks remove --tree=" .. modules_path .. " " .. package
     if spinner(cmd, "Removing " .. package) then
         -- Update rock.toml
         if write_project_toml(data) then
@@ -386,26 +413,27 @@ end
 
 function project.path(base_path, global_lua_path, global_lua_cpath)
     local pwd = os.getenv("PWD")
-    local local_bin_dir = pwd .. "/lua_modules/bin"
+    local modules_path = get_modules_path()
+    local local_bin_dir = pwd .. "/" .. modules_path .. "/bin"
     
     local local_lua_path = ""
     local local_lua_cpath = ""
     
-    local share_h = io.popen("ls " .. pwd .. "/lua_modules/share/lua 2>/dev/null")
+    local share_h = io.popen("ls " .. pwd .. "/" .. modules_path .. "/share/lua 2>/dev/null")
     if share_h then
         for v in share_h:lines() do
             if v:match("^%d+%.%d+$") then
-                local_lua_path = local_lua_path .. pwd .. "/lua_modules/share/lua/" .. v .. "/?.lua;" .. pwd .. "/lua_modules/share/lua/" .. v .. "/?/init.lua;"
+                local_lua_path = local_lua_path .. pwd .. "/" .. modules_path .. "/share/lua/" .. v .. "/?.lua;" .. pwd .. "/" .. modules_path .. "/share/lua/" .. v .. "/?/init.lua;"
             end
         end
         share_h:close()
     end
     
-    local lib_h = io.popen("ls " .. pwd .. "/lua_modules/lib/lua 2>/dev/null")
+    local lib_h = io.popen("ls " .. pwd .. "/" .. modules_path .. "/lib/lua 2>/dev/null")
     if lib_h then
         for v in lib_h:lines() do
             if v:match("^%d+%.%d+$") then
-                local_lua_cpath = local_lua_cpath .. pwd .. "/lua_modules/lib/lua/" .. v .. "/?.so;"
+                local_lua_cpath = local_lua_cpath .. pwd .. "/" .. modules_path .. "/lib/lua/" .. v .. "/?.so;"
             end
         end
         lib_h:close()
@@ -467,25 +495,26 @@ function project.run(script_name)
 
     -- Setup local environment
     local pwd = os.getenv("PWD")
-    local local_bin_dir = pwd .. "/lua_modules/bin"
+    local modules_path = get_modules_path()
+    local local_bin_dir = pwd .. "/" .. modules_path .. "/bin"
     
     -- Dynamic Path Construction
     local local_lua_path = ""
     local local_lua_cpath = ""
-    local share_h = io.popen("ls " .. pwd .. "/lua_modules/share/lua 2>/dev/null")
+    local share_h = io.popen("ls " .. pwd .. "/" .. modules_path .. "/share/lua 2>/dev/null")
     if share_h then
         for v in share_h:lines() do
             if v:match("^%d+%.%d+$") then
-                local_lua_path = local_lua_path .. pwd .. "/lua_modules/share/lua/" .. v .. "/?.lua;" .. pwd .. "/lua_modules/share/lua/" .. v .. "/?/init.lua;"
+                local_lua_path = local_lua_path .. pwd .. "/" .. modules_path .. "/share/lua/" .. v .. "/?.lua;" .. pwd .. "/" .. modules_path .. "/share/lua/" .. v .. "/?/init.lua;"
             end
         end
         share_h:close()
     end
-    local lib_h = io.popen("ls " .. pwd .. "/lua_modules/lib/lua 2>/dev/null")
+    local lib_h = io.popen("ls " .. pwd .. "/" .. modules_path .. "/lib/lua 2>/dev/null")
     if lib_h then
         for v in lib_h:lines() do
             if v:match("^%d+%.%d+$") then
-                local_lua_cpath = local_lua_cpath .. pwd .. "/lua_modules/lib/lua/" .. v .. "/?.so;"
+                local_lua_cpath = local_lua_cpath .. pwd .. "/" .. modules_path .. "/lib/lua/" .. v .. "/?.so;"
             end
         end
         lib_h:close()
@@ -536,6 +565,30 @@ function project.run(script_name)
         os.exit(1)
     end
     os.remove(tmp_err)
+end
+
+function project.config(key, val)
+    local rc = read_rockrc()
+    if not key then
+        print("Current configuration:")
+        for k, v in pairs(rc.configs) do
+            print(string.format("  %s = %q", k, v))
+        end
+        return
+    end
+
+    if not val then
+        print(string.format("%s = %q", key, rc.configs[key] or ""))
+        return
+    end
+
+    rc.configs[key] = val
+    write_rockrc(rc)
+    print(string.format("✓ Set %s to %q in .rockrc", key, val))
+    
+    if key == "modules_path" then
+        print(colors.yellow .. "Note: You may need to run 'rock install' to move dependencies to the new path." .. colors.reset)
+    end
 end
 
 return project

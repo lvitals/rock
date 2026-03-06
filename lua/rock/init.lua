@@ -645,6 +645,7 @@ commands["auto-switch"] = function()
     end
 end
 
+function commands.config(k, v) project.config(k, v) end
 function commands.path() project.path() end
 function commands.save(p, ...) project.save(p, ...) end
 function commands.remove(p) project.remove(p) end
@@ -658,6 +659,7 @@ elseif cmd == "about" then commands.about()
 elseif cmd == "restore" then commands.restore(arg[2] == "--force")
 elseif cmd == "remove" then commands.remove(arg[2])
 elseif cmd == "implode" then commands.implode()
+elseif cmd == "config" then commands.config(arg[2], arg[3])
 
 elseif cmd == "run" then commands.run(table.unpack(arg, 2))
 elseif cmd == "save-dev" then commands.save(arg[2], true, table.unpack(arg, 3))
