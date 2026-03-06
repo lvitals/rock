@@ -4,7 +4,7 @@
 
 set -e
 
-ROCK_VERSION="v0.1.4"
+ROCK_VERSION="v0.1.5"
 LUA_VERSION="5.4.7"
 ROCK_ROOT="$HOME/.rock"
 INTERNAL_DIR="$ROCK_ROOT/internal"
