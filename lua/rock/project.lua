@@ -249,7 +249,7 @@ function project.save(package_arg, ...)
     end
 end
 
-function project.restore(force)
+function project.restore(force, verbose)
     local lock_data = read_toml("rock.lock")
     local data = read_toml("rock.toml")
     
@@ -355,10 +355,11 @@ function project.restore(force)
             local extra_args = rc.pkg_flags[dep.name] or ""
             if extra_args ~= "" then extra_args = " " .. extra_args end
 
-            -- Optimized command with better dependency handling and standard server
-            local cmd = env_prefix .. lr_bin .. lua_ver_flag .. lua_dir_flag .. " install --server=https://luarocks.org --tree=" .. modules_path .. " " .. force_flag .. "--deps-mode=all " .. dep.name .. " " .. ver_cmd .. extra_args
+            -- Optimized command with better dependency handling
+            local cmd = env_prefix .. lr_bin .. lua_ver_flag .. lua_dir_flag .. " install --tree=" .. modules_path .. " " .. force_flag .. "--deps-mode=all " .. dep.name .. " " .. ver_cmd .. extra_args
+            if verbose then cmd = cmd .. " --verbose" end
 
-            spinner(cmd, "  Installing " .. dep.name .. (dep.version ~= "latest" and (" (" .. dep.version .. ")") or ""))
+            spinner(cmd, "  Installing " .. dep.name .. (dep.version ~= "latest" and (" (" .. dep.version .. ")") or ""), verbose)
         end
         print("Done restoring dependencies.")
         print("eval: hash -r 2>/dev/null || true")

@@ -597,20 +597,21 @@ function commands.remove(package)
     local lr_cmd = env_prefix .. lr_bin .. " --lua-version=" .. lv .. " --lua-dir=" .. ld .. " --tree=" .. ld .. " remove " .. package
 
     if spinner(lr_cmd, "Removing global package '" .. package .. "'") then
-        print(colors.bold_green .. "✓ Successfully removed global package '" .. package .. "'." .. colors.reset)
+        io.stderr:write(colors.bold_green .. "✓ Successfully removed global package '" .. package .. "'." .. colors.reset .. "\n")
         print("eval: hash -r 2>/dev/null || true")
     else
-        print(colors.red .. "Error: Failed to remove package '" .. package .. "'." .. colors.reset)
+        io.stderr:write(colors.red .. "Error: Failed to remove package '" .. package .. "'." .. colors.reset .. "\n")
     end
 end
 
-function commands.install(v, v2)
-    local force = (v == "--force" or v2 == "--force")
+function commands.install(v, v2, v3)
+    local force = (v == "--force" or v2 == "--force" or v3 == "--force")
+    local verbose = (v == "--verbose" or v == "-v" or v2 == "--verbose" or v2 == "-v" or v3 == "--verbose" or v3 == "-v")
     local version = (v and v:sub(1,1) ~= "-") and v or nil
 
     if not version then
         -- No version provided, check for rock.toml and restore project
-        project.restore(force)
+        project.restore(force, verbose)
         return
     end
 
@@ -651,17 +652,17 @@ function commands.install(v, v2)
         if f_lr then f_lr:close(); lr_bin = internal_lr end
 
         local lr_cmd = env_prefix .. lr_bin .. " --lua-version=" .. lv .. " --lua-dir=" .. ld .. " --tree=" .. ld .. " install " .. version .. force_flag
+        if verbose then lr_cmd = lr_cmd .. " --verbose" end
 
-        if spinner(lr_cmd, "Installing global package '" .. version .. "'") then
-            print(colors.bold_green .. "✓ Successfully installed global package '" .. version .. "'." .. colors.reset)
+        if spinner(lr_cmd, "Installing global package '" .. version .. "'", verbose) then
+            io.stderr:write(colors.bold_green .. "✓ Successfully installed global package '" .. version .. "'." .. colors.reset .. "\n")
             print("eval: hash -r 2>/dev/null || true")
         else
-            print(colors.red .. "Error: Failed to install package '" .. version .. "'." .. colors.reset)
+            io.stderr:write(colors.red .. "Error: Failed to install package '" .. version .. "'." .. colors.reset .. "\n")
             os.exit(1)
         end
         return
-    end    
-    local v_dir = os.getenv("HOME") .. "/.rock/versions"
+        end    local v_dir = os.getenv("HOME") .. "/.rock/versions"
     local prefix = is_refman and "refman-" or "lua-"
     local tarball = v_dir .. "/" .. prefix .. v_clean .. ".tar.gz"
     local inst_path = v_dir .. "/" .. prefix .. v_clean

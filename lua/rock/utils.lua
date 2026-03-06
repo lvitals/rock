@@ -7,40 +7,44 @@ local colors = {
     bold_green = "\27[1;32m", bold_cyan = "\27[1;36m", bold_white = "\27[1;37m"
 }
 
-function utils.spinner(cmd, message)
+function utils.spinner(cmd, message, verbose)
+    if verbose then
+        -- Use stderr for verbose output to bypass shell wrapper's stdout capture
+        io.stderr:write(colors.bold_cyan .. "-> " .. message .. colors.reset .. "\n")
+        io.stderr:flush()
+        -- Redirect command stdout and stderr to our stderr
+        local res = os.execute(cmd .. " >&2")
+        local success = (res == 0 or res == true)
+        io.stderr:write(success and (colors.bold_green .. "✓ " .. message .. colors.reset .. "\n") or (colors.red .. "✗ " .. message .. colors.reset .. "\n"))
+        io.stderr:flush()
+        return success
+    end
+
     local frames = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
     local i = 1
     
     local tmp_out = os.tmpname()
     local exit_file = tmp_out .. ".exit"
     
-    -- Execute command in background and save its exit code
     local full_cmd = "{ (" .. cmd .. "); echo $? > " .. exit_file .. "; } > " .. tmp_out .. " 2>&1 &"
     os.execute(full_cmd)
     
     local success = nil
     while success == nil do
-        -- Use io.stderr to bypass the shell wrapper's stdout capture
         io.stderr:write("\r" .. colors.bold_cyan .. frames[i] .. colors.reset .. " " .. message .. "   ")
         io.stderr:flush()
         i = (i % #frames) + 1
         
-        -- Check if command finished
         local f_exit = io.open(exit_file, "r")
         if f_exit then
             local code = f_exit:read("*a"):match("(%d+)")
             f_exit:close()
-            if code then
-                success = (code == "0")
-            end
+            if code then success = (code == "0") end
         end
         
-        if success == nil then
-            os.execute("sleep 0.1")
-        end
+        if success == nil then os.execute("sleep 0.1") end
     end
     
-    -- Clear line and show final status on stderr
     io.stderr:write("\r" .. (success and (colors.bold_green .. "✓") or (colors.red .. "✗")) .. " " .. message .. string.rep(" ", 10) .. "\n")
     io.stderr:flush()
     
@@ -53,9 +57,7 @@ function utils.spinner(cmd, message)
         end
     end
     
-    os.remove(tmp_out)
-    os.remove(exit_file)
-    
+    os.remove(tmp_out); os.remove(exit_file)
     return success
 end
 
