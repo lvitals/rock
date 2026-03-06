@@ -12,7 +12,14 @@ BIN_DIR="$ROCK_ROOT/bin"
 LUA_LOGIC_DIR="$ROCK_ROOT/lua"
 REPO_URL="https://github.com/lvitals/rock"
 
-echo "=== Installing Rock CLI $ROCK_VERSION ==="
+# ANSI Color Codes
+BOLD='\033[1m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${BOLD}=== Installing Rock CLI ${CYAN}$ROCK_VERSION${NC}${BOLD} ===${NC}"
 
 # 1. Check basic dependencies
 for cmd in gcc make curl tar; do
@@ -123,8 +130,10 @@ else
 fi
 
 echo ""
-echo "=== Rock installed successfully in $BIN_DIR/rock-bin ==="
-echo "Please restart your terminal or run: source $SHELL_PROFILE"
-echo "To finish setting up your environment, run:"
-echo "  rock update && rock upgrade-rocks"
-echo "Try running: rock --version"
+echo -e "${GREEN}${BOLD}=== Rock installed successfully in $BIN_DIR/rock-bin ===${NC}"
+echo -e "\n${BOLD}Next steps to finish setting up your environment:${NC}"
+echo -e "  1. Restart your terminal or run: ${YELLOW}source $SHELL_PROFILE${NC}"
+echo -e "  2. Use the bootstrapped Lua:     ${YELLOW}rock use $LUA_VERSION${NC}"
+echo -e "  3. Update and upgrade rocks:     ${YELLOW}rock update && rock upgrade-rocks${NC}"
+echo ""
+echo -e "Try running: ${CYAN}rock --version${NC}"
