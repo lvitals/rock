@@ -60,5 +60,4 @@ When you install a package with extra flags (like `MYSQL_INCDIR`), Rock automati
 
 ## License
 
-MIT
-MIT
+Rock is released under the [MIT License](LICENSE).
