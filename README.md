@@ -49,7 +49,6 @@ Rock can be configured per-project using a `.rockrc` file. This file stores buil
 ### Custom Modules Path
 By default, Rock installs dependencies into `lua_modules`. You can change this (e.g., to `vendor`) using:
 
-```bash
 rock config modules_path vendor
 ```
 
