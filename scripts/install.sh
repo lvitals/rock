@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # install.sh - Self-contained installer for Rock CLI (nvm/pyenv style)
 # Supports both remote install and local development testing.
 
@@ -19,15 +19,41 @@ CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${BOLD}=== Installing Rock CLI ${CYAN}$ROCK_VERSION${NC}${BOLD} ===${NC}"
+# Helper for colorized output
+info() { printf "${BOLD}=== %b ===${NC}\n" "$1"; }
+success() { printf "${GREEN}${BOLD}=== %b ===${NC}\n" "$1"; }
+warn() { printf "${YELLOW}%b${NC}\n" "$1"; }
+
+info "Installing Rock CLI ${CYAN}$ROCK_VERSION${NC}"
 
 # 1. Check basic dependencies
-for cmd in gcc make curl tar; do
-    if ! command -v $cmd &> /dev/null; then
+for cmd in make tar; do
+    if ! command -v "$cmd" > /dev/null 2>&1; then
         echo "Error: '$cmd' not found. Please install basic build tools."
         exit 1
     fi
 done
+
+# Detect compiler
+if command -v gcc > /dev/null 2>&1; then
+    CC="gcc"
+elif command -v clang > /dev/null 2>&1; then
+    CC="clang"
+else
+    echo "Error: Neither 'gcc' nor 'clang' found. Please install a C compiler."
+    exit 1
+fi
+echo "-> Using compiler: $CC"
+
+# Detect downloader
+if command -v curl > /dev/null 2>&1; then
+    DOWNLOAD="curl -fsSL"
+elif command -v wget > /dev/null 2>&1; then
+    DOWNLOAD="wget -qO-"
+else
+    echo "Error: Neither 'curl' nor 'wget' found. Please install one of them."
+    exit 1
+fi
 
 # 2. Identify Source Root (Local Dev vs Remote)
 SRC_ROOT=""
@@ -54,7 +80,7 @@ if [ -n "$SRC_ROOT" ]; then
 else
     echo "Downloading Rock source from GitHub..."
     TEMP_SRC=$(mktemp -d)
-    curl -L "$REPO_URL/archive/refs/tags/$ROCK_VERSION.tar.gz" | tar -xz -C "$TEMP_SRC" --strip-components=1
+    $DOWNLOAD "$REPO_URL/archive/refs/tags/$ROCK_VERSION.tar.gz" | tar -xz -C "$TEMP_SRC" --strip-components=1
     cp -r "$TEMP_SRC/lua/"* "$LUA_LOGIC_DIR/"
     BUILD_DIR="$TEMP_SRC"
 fi
@@ -66,13 +92,16 @@ MANAGED_LUA_PATH="$ROCK_ROOT/versions/lua-$LUA_VERSION"
 if [ ! -f "$LUA_INSTALL_PATH/bin/lua" ]; then
     echo "Performing Lua $LUA_VERSION bootstrap..."
     TEMP_LUA=$(mktemp -d)
-    curl -L "https://www.lua.org/ftp/lua-$LUA_VERSION.tar.gz" | tar -xz -C "$TEMP_LUA" --strip-components=1
+    $DOWNLOAD "https://www.lua.org/ftp/lua-$LUA_VERSION.tar.gz" | tar -xz -C "$TEMP_LUA" --strip-components=1
     cd "$TEMP_LUA"
     
     PLAT="linux"
-    if [[ "$OSTYPE" == "darwin"* ]]; then PLAT="macosx"; fi
+    case "$(uname)" in
+        Darwin*) PLAT="macosx" ;;
+        *) PLAT="linux" ;;
+    esac
     
-    make "$PLAT" MYCFLAGS="-fPIC"
+    make "$PLAT" CC="$CC" MYCFLAGS="-fPIC"
     make install INSTALL_TOP="$LUA_INSTALL_PATH"
     
     # Also install as a managed version for the user
@@ -97,7 +126,7 @@ LUA_LDFLAGS="-llua"
 
 cd "$BUILD_DIR"
 make clean
-make INCDIR="$INCDIR" LIBDIR="$LIBDIR" LUA_LDFLAGS="$LUA_LDFLAGS" LUA_CFLAGS=""
+make CC="$CC" INCDIR="$INCDIR" LIBDIR="$LIBDIR" LUA_LDFLAGS="$LUA_LDFLAGS" LUA_CFLAGS=""
 
 # 7. Install binary
 mv bin/rock bin/rock-bin
@@ -130,10 +159,11 @@ else
 fi
 
 echo ""
-echo -e "${GREEN}${BOLD}=== Rock installed successfully in $BIN_DIR/rock-bin ===${NC}"
-echo -e "\n${BOLD}Next steps to finish setting up your environment:${NC}"
-echo -e "  1. Restart your terminal or run: ${YELLOW}source $SHELL_PROFILE${NC}"
-echo -e "  2. Use the bootstrapped Lua:     ${YELLOW}rock use $LUA_VERSION${NC}"
-echo -e "  3. Update and upgrade rocks:     ${YELLOW}rock update && rock upgrade-rocks${NC}"
+success "Rock installed successfully in $BIN_DIR/rock-bin"
 echo ""
-echo -e "Try running: ${CYAN}rock --version${NC}"
+printf "${BOLD}Next steps to finish setting up your environment:${NC}\n"
+printf "  1. Restart your terminal or run: ${YELLOW}source %s${NC}\n" "$SHELL_PROFILE"
+printf "  2. Use the bootstrapped Lua:     ${YELLOW}rock use %s${NC}\n" "$LUA_VERSION"
+printf "  3. Update and upgrade rocks:     ${YELLOW}rock update && rock upgrade-rocks${NC}\n"
+echo ""
+printf "Try running: ${CYAN}rock --version${NC}\n"

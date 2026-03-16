@@ -1,5 +1,5 @@
 # Makefile para o Rock CLI
-CC = gcc
+CC ?= gcc
 # Permite sobrescrever os caminhos via linha de comando para o bootstrap
 LUA_CFLAGS = $(shell pkg-config --cflags lua5.4 || pkg-config --cflags lua 2>/dev/null)
 LUA_LDFLAGS = $(shell pkg-config --libs lua5.4 || pkg-config --libs lua 2>/dev/null)
