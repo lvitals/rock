@@ -41,6 +41,23 @@ rock save-dev busted
 
 # Run a script defined in rock.toml
 rock run test
+```
+
+## Lua Version Management
+
+Rock provides robust tools for managing different Lua interpreter versions.
+
+### `rock list`
+
+This command displays all Lua interpreter versions currently installed and managed by Rock on your system. It also shows a list of available Lua versions that can be installed from official sources, making it easy to see which environments are ready for use or can be added to your setup.
+
+### `rock install <version>`
+
+Use this command to download, compile, and integrate a specific Lua interpreter version into Rock's management system. For example, `rock install 5.4.7` will set up Lua 5.4.7. This ensures a consistent and isolated Lua environment, preventing conflicts between projects that might require different Lua versions.
+
+### `rock use <version>`
+
+This command allows you to switch the actively used Lua interpreter version for your current shell session or project. You can choose between Lua versions managed by Rock or system-wide installed Lua environments. This flexibility is crucial for developing and testing projects that have specific Lua version requirements, ensuring compatibility and correct execution.
 
 ## Configuration
 
@@ -49,6 +66,7 @@ Rock can be configured per-project using a `.rockrc` file. This file stores buil
 ### Custom Modules Path
 By default, Rock installs dependencies into `lua_modules`. You can change this (e.g., to `vendor`) using:
 
+```bash
 rock config modules_path vendor
 ```
 

@@ -1,0 +1,87 @@
+.Dd March 26, 2026
+.Dt ROCK-BIN 1
+.Os "rock 0.1.5"
+.
+.Sh NAME
+.Nm rock-bin
+.Nd Lua environment and package manager
+.
+.Sh SYNOPSIS
+.Nm rock-bin
+.Op Ar command
+.Op Ar arguments
+.
+.Sh DESCRIPTION
+.Nm rock-bin
+is a command-line interface tool for managing Lua environments and packages.
+It allows users to manage Lua versions, project dependencies, and execute project-defined scripts.
+.
+.Sh ENVIRONMENT COMMANDS
+.Bl -tag -width Ds
+.It Cm about
+Show details about current stack (Lua, LuaRocks, Rock).
+.It Cm update
+Sync versions from lua.org and LuaRocks GitHub.
+.It Cm upgrade-rocks
+Upgrade internal LuaRocks to the latest version.
+.It Cm implode
+Uninstall Rock and remove all managed files.
+.El
+.
+.Sh VERSION MANAGEMENT
+.Bl -tag -width Ds
+.It Cm install Ar v
+Download and compile a specific Lua version.
+.Pp
+.Dl $ rock install 5.4.7
+.It Cm use Ar v
+Switch Lua version (Rock or System).
+.Pp
+.Dl $ rock use 5.4.7
+.It Cm list
+List installed and available Lua versions.
+.El
+.
+.Sh PROJECT MANAGEMENT
+.Bl -tag -width Ds
+.It Cm init
+Create a new rock.toml project file.
+.It Cm save Ar p Op Ar @ver
+Install and record a dependency (supports @^1.2).
+.Pp
+.Dl $ rock save my-package@1.0
+.It Cm save-dev Ar p Op Ar @ver
+Install and record a dev-dependency.
+.Pp
+.Dl $ rock save-dev my-dev-package@latest
+.It Cm remove Ar p
+Uninstall a package and remove from rock.toml.
+.Pp
+.Dl $ rock remove my-package
+.It Cm restore
+Install all dependencies from rock.lock/toml.
+.It Cm run Ar s
+Run a script defined in rock.toml.
+.Pp
+.Dl $ rock init && rock run start
+.It Cm path
+Show environment exports for the local project.
+.El
+.
+.Sh GLOBAL OPTIONS
+.Bl -tag -width Ds
+.It Fl h , Fl -help
+Show this informative screen.
+.It Fl -version , Fl v
+Show current rock CLI version.
+.El
+.
+.Sh EXAMPLES
+.Dl $ rock update && rock upgrade-rocks
+.Dl $ rock install 5.4.7
+.Dl $ rock use 5.4.7
+.Dl $ rock init && rock run start
+.
+.Sh SEE ALSO
+.Xr luarocks 1 ,
+.Xr lua 1
