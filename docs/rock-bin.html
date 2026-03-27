@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    table.head, table.foot { width: 100%; }
+    td.head-rtitle, td.foot-os { text-align: right; }
+    td.head-vol { text-align: center; }
+    .Nd, .Bf, .Op { display: inline; }
+    .Pa, .Ad { font-style: italic; }
+    .Ms { font-weight: bold; }
+    .Bl-diag > dt { font-weight: bold; }
+    code.Nm, .Fl, .Cm, .Ic, code.In, .Fd, .Fn, .Cd { font-weight: bold;
+      font-family: inherit; }
+  </style>
+  <title>ROCK-BIN(1)</title>
+</head>
+<body>
+<table class="head">
+  <tr>
+    <td class="head-ltitle">ROCK-BIN(1)</td>
+    <td class="head-vol">General Commands Manual</td>
+    <td class="head-rtitle">ROCK-BIN(1)</td>
+  </tr>
+</table>
+<div class="manual-text">
+<section class="Sh">
+<h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NAME</a></h1>
+<p class="Pp"><code class="Nm">rock-bin</code> &#x2014; <span class="Nd">Lua
+    environment and package manager</span></p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SYNOPSIS</a></h1>
+<table class="Nm">
+  <tr>
+    <td><code class="Nm">rock-bin</code></td>
+    <td>[<var class="Ar">command</var>] [<var class="Ar">arguments</var>]</td>
+  </tr>
+</table>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="DESCRIPTION"><a class="permalink" href="#DESCRIPTION">DESCRIPTION</a></h1>
+<p class="Pp"><code class="Nm">rock-bin</code> is a command-line interface tool
+    for managing Lua environments and packages. It allows users to manage Lua
+    versions, project dependencies, and execute project-defined scripts.</p>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="ENVIRONMENT_COMMANDS"><a class="permalink" href="#ENVIRONMENT_COMMANDS">ENVIRONMENT
+  COMMANDS</a></h1>
+<dl class="Bl-tag">
+  <dt id="about"><a class="permalink" href="#about"><code class="Cm">about</code></a></dt>
+  <dd>Show details about current stack (Lua, LuaRocks, Rock).</dd>
+  <dt id="update"><a class="permalink" href="#update"><code class="Cm">update</code></a></dt>
+  <dd>Sync versions from lua.org and LuaRocks GitHub.</dd>
+  <dt id="upgrade-rocks"><a class="permalink" href="#upgrade-rocks"><code class="Cm">upgrade-rocks</code></a></dt>
+  <dd>Upgrade internal LuaRocks to the latest version.</dd>
+  <dt id="implode"><a class="permalink" href="#implode"><code class="Cm">implode</code></a></dt>
+  <dd>Uninstall Rock and remove all managed files.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="VERSION_MANAGEMENT"><a class="permalink" href="#VERSION_MANAGEMENT">VERSION
+  MANAGEMENT</a></h1>
+<dl class="Bl-tag">
+  <dt id="install"><a class="permalink" href="#install"><code class="Cm">install</code></a>
+    <var class="Ar">v</var></dt>
+  <dd>Download and compile a specific Lua version.
+    <p class="Pp"></p>
+    <div class="Bd Bd-indent"><code class="Li">$ rock install 5.4.7</code></div>
+  </dd>
+  <dt id="use"><a class="permalink" href="#use"><code class="Cm">use</code></a>
+    <var class="Ar">v</var></dt>
+  <dd>Switch Lua version (Rock or System).
+    <p class="Pp"></p>
+    <div class="Bd Bd-indent"><code class="Li">$ rock use 5.4.7</code></div>
+  </dd>
+  <dt id="list"><a class="permalink" href="#list"><code class="Cm">list</code></a></dt>
+  <dd>List installed and available Lua versions.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="PROJECT_MANAGEMENT"><a class="permalink" href="#PROJECT_MANAGEMENT">PROJECT
+  MANAGEMENT</a></h1>
+<dl class="Bl-tag">
+  <dt id="init"><a class="permalink" href="#init"><code class="Cm">init</code></a></dt>
+  <dd>Create a new rock.toml project file.</dd>
+  <dt id="save"><a class="permalink" href="#save"><code class="Cm">save</code></a>
+    <var class="Ar">p</var> [<var class="Ar">@ver</var>]</dt>
+  <dd>Install and record a dependency (supports @^1.2).
+    <p class="Pp"></p>
+    <div class="Bd Bd-indent"><code class="Li">$ rock save
+      my-package@1.0</code></div>
+  </dd>
+  <dt id="save-dev"><a class="permalink" href="#save-dev"><code class="Cm">save-dev</code></a>
+    <var class="Ar">p</var> [<var class="Ar">@ver</var>]</dt>
+  <dd>Install and record a dev-dependency.
+    <p class="Pp"></p>
+    <div class="Bd Bd-indent"><code class="Li">$ rock save-dev
+      my-dev-package@latest</code></div>
+  </dd>
+  <dt id="remove"><a class="permalink" href="#remove"><code class="Cm">remove</code></a>
+    <var class="Ar">p</var></dt>
+  <dd>Uninstall a package and remove from rock.toml.
+    <p class="Pp"></p>
+    <div class="Bd Bd-indent"><code class="Li">$ rock remove
+      my-package</code></div>
+  </dd>
+  <dt id="restore"><a class="permalink" href="#restore"><code class="Cm">restore</code></a></dt>
+  <dd>Install all dependencies from rock.lock/toml.</dd>
+  <dt id="run"><a class="permalink" href="#run"><code class="Cm">run</code></a>
+    <var class="Ar">s</var></dt>
+  <dd>Run a script defined in rock.toml.
+    <p class="Pp"></p>
+    <div class="Bd Bd-indent"><code class="Li">$ rock init &amp;&amp; rock run
+      start</code></div>
+  </dd>
+  <dt id="path"><a class="permalink" href="#path"><code class="Cm">path</code></a></dt>
+  <dd>Show environment exports for the local project.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="GLOBAL_OPTIONS"><a class="permalink" href="#GLOBAL_OPTIONS">GLOBAL
+  OPTIONS</a></h1>
+<dl class="Bl-tag">
+  <dt id="h"><a class="permalink" href="#h"><code class="Fl">-h</code></a>,
+    <code class="Fl">--help</code></dt>
+  <dd>Show this informative screen.</dd>
+  <dt id="version"><a class="permalink" href="#version"><code class="Fl">--version</code></a>,
+    <code class="Fl">-v</code></dt>
+  <dd>Show current rock CLI version.</dd>
+</dl>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="EXAMPLES"><a class="permalink" href="#EXAMPLES">EXAMPLES</a></h1>
+<div class="Bd Bd-indent"><code class="Li">$ rock update &amp;&amp; rock
+  upgrade-rocks</code></div>
+<div class="Bd Bd-indent"><code class="Li">$ rock install 5.4.7</code></div>
+<div class="Bd Bd-indent"><code class="Li">$ rock use 5.4.7</code></div>
+<div class="Bd Bd-indent"><code class="Li">$ rock init &amp;&amp; rock run
+  start</code></div>
+</section>
+<section class="Sh">
+<h1 class="Sh" id="SEE_ALSO"><a class="permalink" href="#SEE_ALSO">SEE
+  ALSO</a></h1>
+<p class="Pp"><a class="Xr">luarocks(1)</a>, <a class="Xr">lua(1)</a></p>
+</section>
+</div>
+<table class="foot">
+  <tr>
+    <td class="foot-date">March 26, 2026</td>
+    <td class="foot-os">rock 0.1.5</td>
+  </tr>
+</table>
+</body>
+</html>
