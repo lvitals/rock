@@ -688,7 +688,9 @@ function commands.install(...)
         local check_sum_cmd = "echo '" .. expected_sum .. "  " .. tarball .. "' | sha256sum --check"
         if os.execute(check_sum_cmd .. " > /dev/null 2>&1") then
             if not is_refman then
-                local build_cmd = "cd " .. v_dir .. " && tar -xzf " .. tarball .. " && cd lua-" .. v_clean .. " && make linux MYCFLAGS='-fPIC' && make install INSTALL_TOP=" .. inst_path
+                local trimmed_flags = extra_flags:gsub("^%s*(.-)%s*$", "%1")
+                local mycflags = (trimmed_flags ~= "") and trimmed_flags or "-O2 -Wall -Wextra -fPIC -O"
+                local build_cmd = "cd " .. v_dir .. " && tar -xzf " .. tarball .. " && cd lua-" .. v_clean .. " && make linux MYCFLAGS='"..mycflags.."' CC='cc "..mycflags.."' && make install INSTALL_TOP=" .. inst_path
                 if spinner(build_cmd, "Building and Installing Lua " .. v_clean) then
                     ensure_pc_files(inst_path, v_clean)
                     print(colors.bold_green .. "✓ Successfully installed Lua " .. v_clean .. " at " .. inst_path .. colors.reset) 
