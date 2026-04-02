@@ -115,4 +115,4 @@ It allows users to manage Lua versions, project dependencies, and execute projec
 luarocks(1),
 lua(1)
 
-rock 0.1.5 - March 26, 2026
+rock 0.1.6 - April 2, 2026
