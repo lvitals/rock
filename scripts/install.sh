@@ -25,6 +25,7 @@ NC='\033[0m' # No Color
 # Helper for colorized output
 info() { printf "${BOLD}=== %b ===${NC}\n" "$1"; }
 success() { printf "${GREEN}${BOLD}=== %b ===${NC}\n" "$1"; }
+warn() { printf "${YELLOW}${BOLD}=== %b ===${NC}\n" "$1"; }
 
 info "Installing Rock CLI ${CYAN}$ROCK_VERSION${NC}"
 echo "-> Target directory: $ROCK_ROOT"
