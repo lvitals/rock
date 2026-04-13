@@ -148,16 +148,18 @@ fi
 # end rock configuration
 "
 
-if [ -f "$SHELL_PROFILE" ]; then
-    if ! grep -q "rock configuration" "$SHELL_PROFILE" 2>/dev/null; then
-        printf "%s" "$HOOK_CONTENT" >> "$SHELL_PROFILE"
-        echo "Configuration added to $SHELL_PROFILE"
-    else
-        echo "Rock configuration verified in $SHELL_PROFILE"
-    fi
+# Ensure shell profile exists
+if [ ! -f "$SHELL_PROFILE" ]; then
+    warn "Shell profile $SHELL_PROFILE not found. Creating..."
+    touch "$SHELL_PROFILE"
+fi
+
+# Add configuration if not already present
+if ! grep -q "rock configuration" "$SHELL_PROFILE" 2>/dev/null; then
+    printf "%s" "$HOOK_CONTENT" >> "$SHELL_PROFILE"
+    echo "Configuration added to $SHELL_PROFILE"
 else
-    warn "Shell profile $SHELL_PROFILE not found. Please add the following manually:"
-    echo "$HOOK_CONTENT"
+    echo "Rock configuration verified in $SHELL_PROFILE"
 fi
 
 echo ""
