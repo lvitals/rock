@@ -31,9 +31,9 @@ info "Installing Rock CLI ${CYAN}$ROCK_VERSION${NC}"
 echo "-> Target directory: $ROCK_ROOT"
 
 # 2. Check basic dependencies
-for cmd in make tar; do
+for cmd in make tar unzip; do
     if ! command -v "$cmd" > /dev/null 2>&1; then
-        echo "Error: '$cmd' not found. Please install basic build tools."
+        echo "Error: '$cmd' not found. Please install basic build tools (make, tar, unzip)."
         exit 1
     fi
 done
@@ -130,12 +130,19 @@ mv bin/rock bin/rock-bin
 cp bin/rock-bin "$BIN_DIR/"
 
 # 8. Shell Configuration
+# Prioritize .bashrc if we are in bash or if it's the standard for the user
 SHELL_PROFILE=""
-case "$SHELL" in
-    */bash) SHELL_PROFILE="$HOME/.bashrc" ;;
-    */zsh) SHELL_PROFILE="$HOME/.zshrc" ;;
-    *) SHELL_PROFILE="$HOME/.profile" ;;
-esac
+if [ -n "$BASH_VERSION" ] || [ "$SHELL" = "/bin/bash" ] || [ "$SHELL" = "/usr/bin/bash" ]; then
+    SHELL_PROFILE="$HOME/.bashrc"
+elif [ -n "$ZSH_VERSION" ] || [ "$SHELL" = "/bin/zsh" ] || [ "$SHELL" = "/usr/bin/zsh" ]; then
+    SHELL_PROFILE="$HOME/.zshrc"
+else
+    case "$SHELL" in
+        */bash) SHELL_PROFILE="$HOME/.bashrc" ;;
+        */zsh) SHELL_PROFILE="$HOME/.zshrc" ;;
+        *) SHELL_PROFILE="$HOME/.profile" ;;
+    esac
+fi
 
 HOOK_CONTENT="
 # rock configuration
@@ -150,7 +157,7 @@ fi
 
 # Ensure shell profile exists
 if [ ! -f "$SHELL_PROFILE" ]; then
-    warn "Shell profile $SHELL_PROFILE not found. Creating..."
+    info "Creating missing shell profile: $SHELL_PROFILE"
     touch "$SHELL_PROFILE"
 fi
 
