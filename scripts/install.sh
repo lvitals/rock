@@ -4,7 +4,7 @@
 
 set -e
 
-ROCK_VERSION="v0.1.6"
+ROCK_VERSION="v0.1.7"
 LUA_VERSION="5.4.7"
 REPO_URL="https://github.com/lvitals/rock"
 

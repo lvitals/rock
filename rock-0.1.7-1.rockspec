@@ -1,8 +1,8 @@
 package = "rock"
-version = "0.1.6-1"
+version = "0.1.7-1"
 source = {
    url = "git+https://github.com/lvitals/rock.git",
-   tag = "v0.1.6"
+   tag = "v0.1.7"
 }
 description = {
    summary = "Lua environment and package manager",
