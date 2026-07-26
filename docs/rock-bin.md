@@ -56,7 +56,7 @@ It allows users to manage Lua versions, project dependencies, and execute projec
 
 **init**
 
-> Create a new rock.toml project file.
+> Create a new rock.json project file.
 
 **save** *p* \[*@ver*]
 
@@ -72,17 +72,17 @@ It allows users to manage Lua versions, project dependencies, and execute projec
 
 **remove** *p*
 
-> Uninstall a package and remove from rock.toml.
+> Uninstall a package and remove from rock.json.
 
 > > $ rock remove my-package
 
 **restore**
 
-> Install all dependencies from rock.lock/toml.
+> Install all dependencies from rock.lock.json/rock.json.
 
 **run** *s*
 
-> Run a script defined in rock.toml.
+> Run a script defined in rock.json.
 
 > > $ rock init && rock run start
 

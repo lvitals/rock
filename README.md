@@ -4,8 +4,8 @@ A modern Lua environment and package manager, inspired by `npm`, `nvm`, and `pye
 
 ## Features
 
-- **Dependency Management**: NPM-style versioning (`^`, `~`) with `rock.toml`.
-- **Security & Reproducibility**: Deterministic installs using `rock.lock`.
+- **Dependency Management**: NPM-style versioning (`^`, `~`) with `rock.json`.
+- **Security & Reproducibility**: Deterministic installs using `rock.lock.json`.
 - **Script Runner**: Run custom commands and pipelines with `rock run`.
 - **Auto-Environment**: Automatic configuration of `LUA_PATH` and `LUA_CPATH` for your project.
 - **Zero-Dependency Install**: Self-contained installer that bootstraps its own Lua engine.
@@ -39,7 +39,7 @@ rock save rio MYSQL_INCDIR=/usr/include/mysql
 # Install a development dependency
 rock save-dev busted
 
-# Run a script defined in rock.toml
+# Run a script defined in rock.json
 rock run test
 ```
 

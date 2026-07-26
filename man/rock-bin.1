@@ -45,7 +45,7 @@ List installed and available Lua versions.
 .Sh PROJECT MANAGEMENT
 .Bl -tag -width Ds
 .It Cm init
-Create a new rock.toml project file.
+Create a new rock.json project file.
 .It Cm save Ar p Op Ar @ver
 Install and record a dependency (supports @^1.2).
 .Pp
@@ -55,13 +55,13 @@ Install and record a dev-dependency.
 .Pp
 .Dl $ rock save-dev my-dev-package@latest
 .It Cm remove Ar p
-Uninstall a package and remove from rock.toml.
+Uninstall a package and remove from rock.json.
 .Pp
 .Dl $ rock remove my-package
 .It Cm restore
-Install all dependencies from rock.lock/toml.
+Install all dependencies from rock.lock.json/rock.json.
 .It Cm run Ar s
-Run a script defined in rock.toml.
+Run a script defined in rock.json.
 .Pp
 .Dl $ rock init && rock run start
 .It Cm path

@@ -84,7 +84,7 @@
   MANAGEMENT</a></h1>
 <dl class="Bl-tag">
   <dt id="init"><a class="permalink" href="#init"><code class="Cm">init</code></a></dt>
-  <dd>Create a new rock.toml project file.</dd>
+  <dd>Create a new rock.json project file.</dd>
   <dt id="save"><a class="permalink" href="#save"><code class="Cm">save</code></a>
     <var class="Ar">p</var> [<var class="Ar">@ver</var>]</dt>
   <dd>Install and record a dependency (supports @^1.2).
@@ -101,16 +101,16 @@
   </dd>
   <dt id="remove"><a class="permalink" href="#remove"><code class="Cm">remove</code></a>
     <var class="Ar">p</var></dt>
-  <dd>Uninstall a package and remove from rock.toml.
+  <dd>Uninstall a package and remove from rock.json.
     <p class="Pp"></p>
     <div class="Bd Bd-indent"><code class="Li">$ rock remove
       my-package</code></div>
   </dd>
   <dt id="restore"><a class="permalink" href="#restore"><code class="Cm">restore</code></a></dt>
-  <dd>Install all dependencies from rock.lock/toml.</dd>
+  <dd>Install all dependencies from rock.lock.json/rock.json.</dd>
   <dt id="run"><a class="permalink" href="#run"><code class="Cm">run</code></a>
     <var class="Ar">s</var></dt>
-  <dd>Run a script defined in rock.toml.
+  <dd>Run a script defined in rock.json.
     <p class="Pp"></p>
     <div class="Bd Bd-indent"><code class="Li">$ rock init &amp;&amp; rock run
       start</code></div>

@@ -1,4 +1,5 @@
--- rock/project.lua - Handles rock.toml, rock.lock and project metadata
+-- rock/project.lua - Handles rock.json, rock.lock.json and project metadata
+local json = require("lua.rock.vendor.dkjson")
 local toml = require("lua.rock.vendor.toml")
 local utils = require("lua.rock.utils")
 local colors = utils.colors
@@ -6,7 +7,48 @@ local spinner = utils.spinner
 
 local project = {}
 
-local function read_toml(filename)
+local PROJECT_FILE = "rock.json"
+local LOCK_FILE = "rock.lock.json"
+local LEGACY_PROJECT_FILE = "rock.toml"
+local LEGACY_LOCK_FILE = "rock.lock"
+local JSON_OBJECT_META = { __jsontype = "object" }
+
+local function file_exists(filename)
+    local f = io.open(filename, "r")
+    if f then f:close(); return true end
+    return false
+end
+
+local function read_json(filename)
+    local f = io.open(filename, "r")
+    if not f then return nil end
+    local content = f:read("*a")
+    f:close()
+    return json.decode(content)
+end
+
+local function mark_empty_tables_as_objects(value)
+    if type(value) ~= "table" then return end
+    if next(value) == nil then
+        setmetatable(value, JSON_OBJECT_META)
+        return
+    end
+    for _, child in pairs(value) do
+        mark_empty_tables_as_objects(child)
+    end
+end
+
+local function write_json(filename, data)
+    local f = io.open(filename, "w")
+    if not f then return false end
+    mark_empty_tables_as_objects(data)
+    f:write(json.encode(data, { indent = true }))
+    f:write("\n")
+    f:close()
+    return true
+end
+
+local function read_legacy_toml(filename)
     local f = io.open(filename, "r")
     if not f then return nil end
     local content = f:read("*a")
@@ -14,12 +56,16 @@ local function read_toml(filename)
     return toml.parse(content)
 end
 
-local function write_toml(filename, data)
-    local f = io.open(filename, "w")
-    if not f then return false end
-    f:write(toml.encode(data))
-    f:close()
-    return true
+local function read_project()
+    return read_json(PROJECT_FILE) or read_legacy_toml(LEGACY_PROJECT_FILE)
+end
+
+local function read_lock()
+    return read_json(LOCK_FILE) or read_legacy_toml(LEGACY_LOCK_FILE)
+end
+
+local function project_exists()
+    return file_exists(PROJECT_FILE) or file_exists(LEGACY_PROJECT_FILE)
 end
 
 local function read_rockrc()
@@ -84,32 +130,21 @@ function project.init()
         lua = lua_v or "5.4"
     }
 
-    if read_toml("rock.toml") then
-        print("Error: rock.toml already exists in this directory.")
+    if project_exists() then
+        print("Error: rock.json or rock.toml already exists in this directory.")
         return
     end
 
-    local f = io.open("rock.toml", "w")
-    if not f then
-        print("Error: Could not create rock.toml")
+    default_data.scripts = {}
+    default_data.dependencies = {}
+    default_data.devDependencies = {}
+
+    if not write_json(PROJECT_FILE, default_data) then
+        print("Error: Could not create rock.json")
         return
     end
 
-    -- Manual formatting: Group top fields together, space only before sections
-    f:write(string.format('name = %q\n', default_data.name))
-    f:write(string.format('version = %q\n', default_data.version))
-    f:write(string.format('main = %q\n', default_data.main))
-    f:write(string.format('description = %q\n', default_data.description))
-    f:write(string.format('lua = %q\n\n', default_data.lua))
-    
-    f:write("[scripts]\n\n")
-    
-    f:write("[dependencies]\n\n")
-    
-    f:write("[devDependencies]\n")
-    f:close()
-
-    print("Created rock.toml successfully with Lua " .. (lua_v or "5.4") .. "!")
+    print("Created rock.json successfully with Lua " .. (lua_v or "5.4") .. "!")
 end
 
 local function get_installed_version(package)
@@ -122,37 +157,16 @@ local function get_installed_version(package)
     return nil
 end
 
-local function write_project_toml(data)
-    local f = io.open("rock.toml", "w")
-    if not f then return false end
-
-    -- Group top fields
-    f:write(string.format('name = %q\n', data.name or ""))
-    f:write(string.format('version = %q\n', data.version or "1.0.0"))
-    f:write(string.format('main = %q\n', data.main or "main.lua"))
-    f:write(string.format('description = %q\n', data.description or ""))
-    f:write(string.format('lua = %q\n\n', data.lua or "5.4"))
-
-    -- Sections
-    local function write_section(title, section_data)
-        f:write("[" .. title .. "]\n")
-        if section_data then
-            local keys = {}
-            for k in pairs(section_data) do table.insert(keys, k) end
-            table.sort(keys)
-            for _, k in ipairs(keys) do
-                f:write(string.format('%s = %q\n', k, section_data[k]))
-            end
-        end
-        f:write("\n")
-    end
-
-    write_section("scripts", data.scripts)
-    write_section("dependencies", data.dependencies)
-    write_section("devDependencies", data.devDependencies)
-    
-    f:close()
-    return true
+local function write_project_json(data)
+    data.name = data.name or ""
+    data.version = data.version or "1.0.0"
+    data.main = data.main or "main.lua"
+    data.description = data.description or ""
+    data.lua = data.lua or "5.4"
+    data.scripts = data.scripts or {}
+    data.dependencies = data.dependencies or {}
+    data.devDependencies = data.devDependencies or {}
+    return write_json(PROJECT_FILE, data)
 end
 
 function project.save(package_arg, ...)
@@ -168,9 +182,9 @@ function project.save(package_arg, ...)
         end
     end
 
-    local data = read_toml("rock.toml")
+    local data = read_project()
     if not data then
-        print("Error: No rock.toml found. Run 'rock init' first.")
+        print("Error: No rock.json found. Run 'rock init' first.")
         return
     end
 
@@ -180,10 +194,10 @@ function project.save(package_arg, ...)
     print("Installing " .. package .. (requested_version ~= "latest" and (" version " .. requested_version) or "") .. " via LuaRocks...")
     
     local luarocks_ver = ""
-    local toml_ver = "latest"
+    local manifest_ver = "latest"
 
     if requested_version ~= "latest" then
-        toml_ver = requested_version
+        manifest_ver = requested_version
         luarocks_ver = requested_version:gsub("^%^", ""):gsub("^~", "")
     end
 
@@ -224,25 +238,25 @@ function project.save(package_arg, ...)
         -- Get exact version installed for lockfile
         local exact_version = get_installed_version(package)
         
-        -- Update rock.toml preserving format
-        data[section][package] = toml_ver
-        if write_project_toml(data) then
-            print("Successfully saved " .. package .. " (" .. toml_ver .. ") to " .. section)
+        -- Update rock.json.
+        data[section][package] = manifest_ver
+        if write_project_json(data) then
+            print("Successfully saved " .. package .. " (" .. manifest_ver .. ") to " .. section)
         else
-            print("Error: Could not update rock.toml")
+            print("Error: Could not update rock.json")
         end
 
-        -- Update rock.lock
-        local lock_data = read_toml("rock.lock") or { dependencies = {} }
+        -- Update rock.lock.json
+        local lock_data = read_lock() or { dependencies = {} }
         lock_data.lua = data.lua -- Sync Lua version to lock
         lock_data.dependencies[package] = {
-            version = exact_version or toml_ver,
+            version = exact_version or manifest_ver,
             section = section
         }
-        if write_toml("rock.lock", lock_data) then
-            print("Updated rock.lock with exact version and Lua info.")
+        if write_json(LOCK_FILE, lock_data) then
+            print("Updated rock.lock.json with exact version and Lua info.")
         else
-            print("Error: Could not update rock.lock")
+            print("Error: Could not update rock.lock.json")
         end
     else
         print("Error: Failed to install " .. package)
@@ -250,15 +264,15 @@ function project.save(package_arg, ...)
 end
 
 function project.restore(force, verbose)
-    local lock_data = read_toml("rock.lock")
-    local data = read_toml("rock.toml")
+    local lock_data = read_lock()
+    local data = read_project()
     
     if not data then
-        print("Error: No rock.toml found.")
+        print("Error: No rock.json found.")
         return
     end
 
-    -- 1. Check for Lua version in rock.toml
+    -- 1. Check for Lua version in rock.json
     if data.lua then
         local active_v = os.getenv("LUA_VERSION")
         if active_v and active_v ~= data.lua and not force then
@@ -287,7 +301,7 @@ function project.restore(force, verbose)
         if not lock_data or lock_data.lua ~= data.lua then
             local new_lock = lock_data or { dependencies = {} }
             new_lock.lua = data.lua
-            write_toml("rock.lock", new_lock)
+            write_json(LOCK_FILE, new_lock)
             lock_data = new_lock
         end
 
@@ -300,7 +314,7 @@ function project.restore(force, verbose)
     local lock_has_deps = false
     if lock_data and lock_data.dependencies and next(lock_data.dependencies) then
         lock_has_deps = true
-        print("Restoring dependencies from rock.lock...")
+        print("Restoring dependencies from rock.lock.json...")
         for name, info in pairs(lock_data.dependencies) do
             if type(info) == "table" then
                 table.insert(deps_to_install, { name = name, version = info.version })
@@ -311,7 +325,7 @@ function project.restore(force, verbose)
     end
 
     if not lock_has_deps then
-        print("No dependencies found in rock.lock (or file missing). Checking rock.toml...")
+        print("No dependencies found in rock.lock.json (or file missing). Checking project manifest...")
         local sections = {"dependencies", "devDependencies"}
         for _, section in ipairs(sections) do
             if data[section] and type(data[section]) == "table" then
@@ -370,15 +384,15 @@ function project.restore(force, verbose)
             spinner(cmd, "  Installing " .. dep.name .. (dep.version ~= "latest" and (" (" .. dep.version .. ")") or ""), verbose)
         end
 
-        -- Update rock.lock with exact versions after restoration
+        -- Update rock.lock.json with exact versions after restoration
         local final_lock_data = { lua = data.lua, dependencies = {} }
         for _, dep in ipairs(deps_to_install) do
             local exact = get_installed_version(dep.name)
             final_lock_data.dependencies[dep.name] = { version = exact or dep.version }
         end
-        write_toml("rock.lock", final_lock_data)
+        write_json(LOCK_FILE, final_lock_data)
 
-        print("Done restoring dependencies and updated rock.lock.")
+        print("Done restoring dependencies and updated rock.lock.json.")
         print("eval: hash -r 2>/dev/null || true")
     end
 end
@@ -398,9 +412,9 @@ local function get_env_paths()
 end
 
 function project.remove(package)
-    local data = read_toml("rock.toml")
+    local data = read_project()
     if not data then
-        print("Error: No rock.toml found.")
+        print("Error: No rock.json found.")
         return
     end
 
@@ -415,24 +429,24 @@ function project.remove(package)
     end
 
     if not found then
-        print(colors.red .. "Error: Package '" .. package .. "' not found in rock.toml" .. colors.reset)
+        print(colors.red .. "Error: Package '" .. package .. "' not found in rock.json" .. colors.reset)
         return
     end
 
     local modules_path = get_modules_path()
     local cmd = "luarocks remove --tree=" .. modules_path .. " " .. package
     if spinner(cmd, "Removing " .. package) then
-        -- Update rock.toml
-        if write_project_toml(data) then
-            print("Successfully removed " .. package .. " from rock.toml")
+        -- Update rock.json
+        if write_project_json(data) then
+            print("Successfully removed " .. package .. " from rock.json")
         end
 
-        -- Update rock.lock
-        local lock_data = read_toml("rock.lock")
+        -- Update rock.lock.json
+        local lock_data = read_lock()
         if lock_data and lock_data.dependencies and lock_data.dependencies[package] then
             lock_data.dependencies[package] = nil
-            write_toml("rock.lock", lock_data)
-            print("Updated rock.lock.")
+            write_json(LOCK_FILE, lock_data)
+            print("Updated rock.lock.json.")
         end
     else
         print(colors.red .. "Error: Failed to remove package via LuaRocks." .. colors.reset)
@@ -440,7 +454,7 @@ function project.remove(package)
 end
 
 function project.get_lua_version()
-    local data = read_toml("rock.toml")
+    local data = read_project()
     return data and data.lua
 end
 
@@ -503,9 +517,9 @@ function project.path(base_path, global_lua_path, global_lua_cpath)
 end
 
 function project.run(script_name)
-    local data = read_toml("rock.toml")
+    local data = read_project()
     if not data or not data.scripts then
-        print("Error: No scripts defined in rock.toml")
+        print("Error: No scripts defined in rock.json")
         return
     end
 
@@ -515,7 +529,7 @@ function project.run(script_name)
         local lua_bin = home .. "/.rock/versions/lua-" .. data.lua .. "/bin/lua"
         local f_lua = io.open(lua_bin, "r")
         if not f_lua then
-            io.stderr:write(colors.red .. "Error: Lua version " .. data.lua .. " (required by rock.toml) is not installed.\n" .. colors.reset)
+            io.stderr:write(colors.red .. "Error: Lua version " .. data.lua .. " (required by rock.json) is not installed.\n" .. colors.reset)
             io.stderr:write(colors.yellow .. "To set up your environment, please run:\n" .. colors.reset)
             io.stderr:write("  " .. colors.bold_white .. "$ rock update && rock upgrade-rocks\n" .. colors.reset)
             io.stderr:write("  " .. colors.bold_white .. "$ rock install " .. data.lua .. "\n" .. colors.reset)
@@ -539,7 +553,7 @@ function project.run(script_name)
 
     local command = data.scripts[script_name]
     if not command then
-        print("Error: Script '" .. script_name .. "' not found in rock.toml")
+        print("Error: Script '" .. script_name .. "' not found in rock.json")
         return
     end
 

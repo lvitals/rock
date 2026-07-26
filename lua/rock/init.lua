@@ -37,6 +37,14 @@ local function q(s) return "\"" .. s .. "\"" end
 
 local commands = {}
 
+local function project_file_exists()
+    local f = io.open("rock.json", "r")
+    if f then f:close(); return true end
+    f = io.open("rock.toml", "r")
+    if f then f:close(); return true end
+    return false
+end
+
 -- Utility: Robust version comparison (SemVer style)
 local function compare_versions(v1, v2)
     if not v1 or not v2 then return false end
@@ -156,12 +164,12 @@ local function help()
     print(string.format("  %-25s %s", colors.green .. "use <v>" .. colors.reset, "Switch Lua version (Rock or System)"))
 
     print("\n" .. colors.bold_white .. "Project Management:" .. colors.reset)
-    print(string.format("  %-25s %s", colors.green .. "init" .. colors.reset, "Create a new rock.toml project file"))
+    print(string.format("  %-25s %s", colors.green .. "init" .. colors.reset, "Create a new rock.json project file"))
     print(string.format("  %-25s %s", colors.green .. "save <p>[@ver]" .. colors.reset, "Install and record a dependency (supports @^1.2)"))
     print(string.format("  %-25s %s", colors.green .. "save-dev <p>[@ver]" .. colors.reset, "Install and record a dev-dependency"))
-    print(string.format("  %-25s %s", colors.green .. "remove <p>" .. colors.reset, "Uninstall a package and remove from rock.toml"))
-    print(string.format("  %-25s %s", colors.green .. "restore" .. colors.reset, "Install all dependencies from rock.lock/toml"))
-    print(string.format("  %-25s %s", colors.green .. "run <s>" .. colors.reset, "Run a script defined in rock.toml"))
+    print(string.format("  %-25s %s", colors.green .. "remove <p>" .. colors.reset, "Uninstall a package and remove from rock.json"))
+    print(string.format("  %-25s %s", colors.green .. "restore" .. colors.reset, "Install all dependencies from rock.lock.json/rock.json"))
+    print(string.format("  %-25s %s", colors.green .. "run <s>" .. colors.reset, "Run a script defined in rock.json"))
     print(string.format("  %-25s %s", colors.green .. "path" .. colors.reset, "Show environment exports for the local project"))
 
     print("\n" .. colors.bold_white .. "Global Options:" .. colors.reset)
@@ -418,8 +426,7 @@ function commands.use(v, sv)
         if not final_global_lua_cpath:match(";;$") then final_global_lua_cpath = final_global_lua_cpath .. ";;" end
 
         -- Export project-specific paths if in a project
-        if io.open("rock.toml", "r") then
-            io.open("rock.toml", "r"):close()
+        if project_file_exists() then
             project.path(new_path, final_global_lua_path, final_global_lua_cpath) 
         else
             print("eval: export LUA_PATH=\"" .. final_global_lua_path .. "\"")
@@ -473,18 +480,18 @@ function commands.init(mode)
         -- Hook directory changes for auto-switch
         print("cd() {")
         print("    command cd \"$@\"")
-        print("    if [ -f \"rock.toml\" ]; then")
+        print("    if [ -f \"rock.json\" ] || [ -f \"rock.toml\" ]; then")
         print("        eval \"$(\"" .. bin_path .. "\" auto-switch | grep '^eval: ' | sed 's/^eval: //')\"")
         print("    fi")
         print("}")
 
         -- Load environment immediately if already in a project
-        print("if [ -f \"rock.toml\" ]; then")
+        print("if [ -f \"rock.json\" ] || [ -f \"rock.toml\" ]; then")
         print("    eval \"$(\"" .. bin_path .. "\" auto-switch | grep '^eval: ' | sed 's/^eval: //')\"")
         print("fi")
 
         print("rock() {")
-        print("    if [ -f \"rock.toml\" ] && [ \"$1\" != \"use\" ] && [ \"$1\" != \"auto-switch\" ] && [ \"$1\" != \"install\" ]; then")
+        print("    if { [ -f \"rock.json\" ] || [ -f \"rock.toml\" ]; } && [ \"$1\" != \"use\" ] && [ \"$1\" != \"auto-switch\" ] && [ \"$1\" != \"install\" ]; then")
         print("        local sw_out=$(\"" .. bin_path .. "\" auto-switch 2>&1)")
         print("        local sw_ret=$?")
         print("        if [ $sw_ret -ne 0 ]; then")
@@ -504,7 +511,7 @@ function commands.init(mode)
         print("}")
         
         print("lua() {")
-        print("    if [ -f \"rock.toml\" ]; then")
+        print("    if [ -f \"rock.json\" ] || [ -f \"rock.toml\" ]; then")
         print("        local out=$(\"" .. bin_path .. "\" auto-switch)")
         print("        while IFS= read -r line; do [[ \"$line\" == eval:* ]] && eval \"${line#eval: }\"; done <<< \"$out\"")
         print("    fi")
@@ -512,7 +519,7 @@ function commands.init(mode)
         print("}")
 
         print("luarocks() {")
-        print("    if [ -f \"rock.toml\" ]; then")
+        print("    if [ -f \"rock.json\" ] || [ -f \"rock.toml\" ]; then")
         print("        local out=$(\"" .. bin_path .. "\" auto-switch)")
         print("        while IFS= read -r line; do [[ \"$line\" == eval:* ]] && eval \"${line#eval: }\"; done <<< \"$out\"")
         print("    fi")
@@ -573,8 +580,7 @@ function commands.remove(package)
         return
     end
 
-    if io.open("rock.toml", "r") then
-        io.open("rock.toml", "r"):close()
+    if project_file_exists() then
         project.remove(package)
         return
     end
@@ -624,7 +630,7 @@ function commands.install(...)
     end
 
     if not version then
-        -- No version provided, check for rock.toml and restore project
+        -- No version provided, check for rock.json and restore project
         project.restore(force, verbose)
         return
     end
@@ -778,7 +784,7 @@ commands["auto-switch"] = function()
             -- Load project paths after switching Lua version
             project.path()
         else
-            io.stderr:write(colors.red .. "Error: Lua version " .. v .. " (required by rock.toml) is not installed.\n" .. colors.reset)
+            io.stderr:write(colors.red .. "Error: Lua version " .. v .. " (required by rock.json) is not installed.\n" .. colors.reset)
             io.stderr:write(colors.yellow .. "To set up your environment, please run:\n" .. colors.reset)
             io.stderr:write("  " .. colors.bold_white .. "$ rock update && rock upgrade-rocks\n" .. colors.reset)
             io.stderr:write("  " .. colors.bold_white .. "$ rock install " .. v .. "\n" .. colors.reset)
@@ -786,9 +792,8 @@ commands["auto-switch"] = function()
             os.exit(1)
         end
     else
-        -- If no specific Lua version is required, still load project paths if rock.toml exists
-        if io.open("rock.toml", "r") then
-            io.open("rock.toml", "r"):close()
+        -- If no specific Lua version is required, still load project paths if rock.json exists
+        if project_file_exists() then
             project.path()
         end
     end

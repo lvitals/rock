@@ -21,12 +21,12 @@ Rock is a command-line interface tool that functions as a Lua environment and pa
 
 ## Project Management
 
-*   **init**: Create a new `rock.toml` project configuration file.
-*   **save <p>[@ver]**: Install a package and record it as a dependency in `rock.toml`. Supports version specifications like `@^1.2`.
+*   **init**: Create a new `rock.json` project configuration file.
+*   **save <p>[@ver]**: Install a package and record it as a dependency in `rock.json`. Supports version specifications like `@^1.2`.
 *   **save-dev <p>[@ver]**: Install a package and record it as a development dependency.
-*   **remove <p>**: Uninstall a package and remove its entry from `rock.toml`.
-*   **restore**: Install all dependencies listed in `rock.lock` or `rock.toml`.
-*   **run <s>**: Execute a script defined within the `rock.toml` file.
+*   **remove <p>**: Uninstall a package and remove its entry from `rock.json`.
+*   **restore**: Install all dependencies listed in `rock.lock.json` or `rock.json`.
+*   **run <s>**: Execute a script defined within the `rock.json` file.
 *   **path**: Display environment exports relevant to the local project.
 
 ## Global Options
