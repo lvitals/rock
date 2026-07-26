@@ -1,6 +1,5 @@
 -- rock/project.lua - Handles rock.json, rock.lock.json and project metadata
 local json = require("lua.rock.vendor.dkjson")
-local toml = require("lua.rock.vendor.toml")
 local utils = require("lua.rock.utils")
 local colors = utils.colors
 local spinner = utils.spinner
@@ -9,8 +8,6 @@ local project = {}
 
 local PROJECT_FILE = "rock.json"
 local LOCK_FILE = "rock.lock.json"
-local LEGACY_PROJECT_FILE = "rock.toml"
-local LEGACY_LOCK_FILE = "rock.lock"
 local JSON_OBJECT_META = { __jsontype = "object" }
 
 local function file_exists(filename)
@@ -48,24 +45,16 @@ local function write_json(filename, data)
     return true
 end
 
-local function read_legacy_toml(filename)
-    local f = io.open(filename, "r")
-    if not f then return nil end
-    local content = f:read("*a")
-    f:close()
-    return toml.parse(content)
-end
-
 local function read_project()
-    return read_json(PROJECT_FILE) or read_legacy_toml(LEGACY_PROJECT_FILE)
+    return read_json(PROJECT_FILE)
 end
 
 local function read_lock()
-    return read_json(LOCK_FILE) or read_legacy_toml(LEGACY_LOCK_FILE)
+    return read_json(LOCK_FILE)
 end
 
 local function project_exists()
-    return file_exists(PROJECT_FILE) or file_exists(LEGACY_PROJECT_FILE)
+    return file_exists(PROJECT_FILE)
 end
 
 local function read_rockrc()
@@ -111,6 +100,60 @@ local function get_modules_path()
     return rc.configs.modules_path or "lua_modules"
 end
 
+local function starts_with(value, prefix)
+    return prefix and value:sub(1, #prefix) == prefix
+end
+
+local function clean_separated_paths(value, separator, should_remove)
+    local cleaned = {}
+    for segment in (value or ""):gmatch("([^" .. separator .. "]+)") do
+        if segment ~= "" and not should_remove(segment) then
+            table.insert(cleaned, segment)
+        end
+    end
+    return table.concat(cleaned, separator)
+end
+
+local function is_project_bin_path(segment, project_root, modules_path)
+    if project_root and modules_path and segment == project_root .. "/" .. modules_path .. "/bin" then
+        return true
+    end
+
+    local active_root = os.getenv("ROCK_PROJECT_ROOT")
+    local active_modules = os.getenv("ROCK_PROJECT_MODULES")
+    if active_root and active_modules and segment == active_root .. "/" .. active_modules .. "/bin" then
+        return true
+    end
+
+    return segment:match("/lua_modules/bin$") ~= nil
+end
+
+local function is_project_lua_path(segment, project_root, modules_path)
+    if project_root and modules_path and starts_with(segment, project_root .. "/" .. modules_path .. "/") then
+        return true
+    end
+
+    local active_root = os.getenv("ROCK_PROJECT_ROOT")
+    local active_modules = os.getenv("ROCK_PROJECT_MODULES")
+    if active_root and active_modules and starts_with(segment, active_root .. "/" .. active_modules .. "/") then
+        return true
+    end
+
+    return segment:match("/lua_modules/share/lua/") ~= nil or segment:match("/lua_modules/lib/lua/") ~= nil
+end
+
+local function clean_project_path(value, project_root, modules_path)
+    return clean_separated_paths(value, ":", function(segment)
+        return is_project_bin_path(segment, project_root, modules_path)
+    end)
+end
+
+local function clean_project_lua_paths(value, project_root, modules_path)
+    return clean_separated_paths(value, ";", function(segment)
+        return is_project_lua_path(segment, project_root, modules_path)
+    end)
+end
+
 function project.init()
     local name = os.getenv("PWD"):match("([^/]+)$") or "my-lua-project"
     
@@ -131,7 +174,7 @@ function project.init()
     }
 
     if project_exists() then
-        print("Error: rock.json or rock.toml already exists in this directory.")
+        print("Error: rock.json already exists in this directory.")
         return
     end
 
@@ -486,16 +529,15 @@ function project.path(base_path, global_lua_path, global_lua_cpath)
         lib_h:close()
     end
 
-    -- Clean up any existing rock-managed paths to prevent version bleed (e.g., 5.4.7 mixed with 5.4.8)
+    -- Clean up any existing rock-managed paths to prevent version bleed.
     local current_lua_path = os.getenv("LUA_PATH") or ""
     current_lua_path = current_lua_path:gsub("[^;]*/%.rock/versions/[^;]*/share/lua/[^;]*/%?.lua;?", "")
     current_lua_path = current_lua_path:gsub("[^;]*/%.rock/versions/[^;]*/share/lua/[^;]*/%?/init.lua;?", "")
-    current_lua_path = current_lua_path:gsub("[^;]*/lua_modules/share/lua/[^;]*/%?.lua;?", "")
-    current_lua_path = current_lua_path:gsub("[^;]*/lua_modules/share/lua/[^;]*/%?/init.lua;?", "")
+    current_lua_path = clean_project_lua_paths(current_lua_path, pwd, modules_path)
 
     local current_lua_cpath = os.getenv("LUA_CPATH") or ""
     current_lua_cpath = current_lua_cpath:gsub("[^;]*/%.rock/versions/[^;]*/lib/lua/[^;]*/%?.so;?", "")
-    current_lua_cpath = current_lua_cpath:gsub("[^;]*/lua_modules/lib/lua/[^;]*/%?.so;?", "")
+    current_lua_cpath = clean_project_lua_paths(current_lua_cpath, pwd, modules_path)
 
     local final_lua_path = local_lua_path .. (global_lua_path or current_lua_path)
     if final_lua_path ~= "" and not final_lua_path:match(";;$") then
@@ -509,11 +551,26 @@ function project.path(base_path, global_lua_path, global_lua_cpath)
         final_lua_cpath = final_lua_cpath .. ";"
     end
     
-    local final_path = local_bin_dir .. ":" .. (base_path or os.getenv("PATH") or "")
+    local clean_path = clean_project_path(base_path or os.getenv("PATH") or "", pwd, modules_path)
+    local final_path = local_bin_dir .. ":" .. clean_path
 
     print(string.format("eval: export LUA_PATH=%q", final_lua_path))
     print(string.format("eval: export LUA_CPATH=%q", final_lua_cpath))
     print(string.format("eval: export PATH=%q", final_path))
+    print(string.format("eval: export ROCK_PROJECT_ROOT=%q", pwd))
+    print(string.format("eval: export ROCK_PROJECT_MODULES=%q", modules_path))
+end
+
+function project.deactivate()
+    local clean_lua_path = clean_project_lua_paths(os.getenv("LUA_PATH") or "")
+    local clean_lua_cpath = clean_project_lua_paths(os.getenv("LUA_CPATH") or "")
+    local clean_path = clean_project_path(os.getenv("PATH") or "")
+
+    print(string.format("eval: export LUA_PATH=%q", clean_lua_path))
+    print(string.format("eval: export LUA_CPATH=%q", clean_lua_cpath))
+    print(string.format("eval: export PATH=%q", clean_path))
+    print("eval: unset ROCK_PROJECT_ROOT")
+    print("eval: unset ROCK_PROJECT_MODULES")
 end
 
 function project.run(script_name)
@@ -584,18 +641,18 @@ function project.run(script_name)
         lib_h:close()
     end
 
-    local final_lua_path = local_lua_path .. (os.getenv("LUA_PATH") or "")
+    local final_lua_path = local_lua_path .. clean_project_lua_paths(os.getenv("LUA_PATH") or "", pwd, modules_path)
     if final_lua_path ~= "" and not final_lua_path:match(";;$") then
         if final_lua_path:sub(-1) ~= ";" then final_lua_path = final_lua_path .. ";" end
         final_lua_path = final_lua_path .. ";"
     end
     
-    local final_lua_cpath = local_lua_cpath .. (os.getenv("LUA_CPATH") or "")
+    local final_lua_cpath = local_lua_cpath .. clean_project_lua_paths(os.getenv("LUA_CPATH") or "", pwd, modules_path)
     if final_lua_cpath ~= "" and not final_lua_cpath:match(";;$") then
         if final_lua_cpath:sub(-1) ~= ";" then final_lua_cpath = final_lua_cpath .. ";" end
         final_lua_cpath = final_lua_cpath .. ";"
     end
-    local final_path = local_bin_dir .. ":" .. (os.getenv("PATH") or "")
+    local final_path = local_bin_dir .. ":" .. clean_project_path(os.getenv("PATH") or "", pwd, modules_path)
 
     -- SMART EXECUTION: Determine if we should prefix with 'lua'
     local bin_name = command:match("^([^%s]+)")

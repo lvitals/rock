@@ -40,8 +40,6 @@ local commands = {}
 local function project_file_exists()
     local f = io.open("rock.json", "r")
     if f then f:close(); return true end
-    f = io.open("rock.toml", "r")
-    if f then f:close(); return true end
     return false
 end
 
@@ -479,19 +477,21 @@ function commands.init(mode)
         
         -- Hook directory changes for auto-switch
         print("cd() {")
-        print("    command cd \"$@\"")
-        print("    if [ -f \"rock.json\" ] || [ -f \"rock.toml\" ]; then")
-        print("        eval \"$(\"" .. bin_path .. "\" auto-switch | grep '^eval: ' | sed 's/^eval: //')\"")
+        print("    command cd \"$@\" || return")
+        print("    local sw_out=$(\"" .. bin_path .. "\" auto-switch 2>&1)")
+        print("    local sw_ret=$?")
+        print("    if [ $sw_ret -ne 0 ]; then")
+        print("        echo \"$sw_out\" | grep -v '^eval: ' >&2")
+        print("        return $sw_ret")
         print("    fi")
+        print("    eval \"$(echo \"$sw_out\" | grep '^eval: ' | sed 's/^eval: //')\"")
         print("}")
 
-        -- Load environment immediately if already in a project
-        print("if [ -f \"rock.json\" ] || [ -f \"rock.toml\" ]; then")
-        print("    eval \"$(\"" .. bin_path .. "\" auto-switch | grep '^eval: ' | sed 's/^eval: //')\"")
-        print("fi")
+        -- Load or clean environment immediately.
+        print("eval \"$(\"" .. bin_path .. "\" auto-switch | grep '^eval: ' | sed 's/^eval: //')\"")
 
         print("rock() {")
-        print("    if { [ -f \"rock.json\" ] || [ -f \"rock.toml\" ]; } && [ \"$1\" != \"use\" ] && [ \"$1\" != \"auto-switch\" ] && [ \"$1\" != \"install\" ]; then")
+        print("    if [ -f \"rock.json\" ] && [ \"$1\" != \"use\" ] && [ \"$1\" != \"auto-switch\" ] && [ \"$1\" != \"install\" ]; then")
         print("        local sw_out=$(\"" .. bin_path .. "\" auto-switch 2>&1)")
         print("        local sw_ret=$?")
         print("        if [ $sw_ret -ne 0 ]; then")
@@ -511,7 +511,7 @@ function commands.init(mode)
         print("}")
         
         print("lua() {")
-        print("    if [ -f \"rock.json\" ] || [ -f \"rock.toml\" ]; then")
+        print("    if [ -f \"rock.json\" ]; then")
         print("        local out=$(\"" .. bin_path .. "\" auto-switch)")
         print("        while IFS= read -r line; do [[ \"$line\" == eval:* ]] && eval \"${line#eval: }\"; done <<< \"$out\"")
         print("    fi")
@@ -519,7 +519,7 @@ function commands.init(mode)
         print("}")
 
         print("luarocks() {")
-        print("    if [ -f \"rock.json\" ] || [ -f \"rock.toml\" ]; then")
+        print("    if [ -f \"rock.json\" ]; then")
         print("        local out=$(\"" .. bin_path .. "\" auto-switch)")
         print("        while IFS= read -r line; do [[ \"$line\" == eval:* ]] && eval \"${line#eval: }\"; done <<< \"$out\"")
         print("    fi")
@@ -792,9 +792,10 @@ commands["auto-switch"] = function()
             os.exit(1)
         end
     else
-        -- If no specific Lua version is required, still load project paths if rock.json exists
         if project_file_exists() then
             project.path()
+        else
+            project.deactivate()
         end
     end
 end

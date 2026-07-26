@@ -31,7 +31,6 @@ build = {
          ["lua.rock.remote"] = "lua/rock/remote.lua",
          ["lua.rock.utils"] = "lua/rock/utils.lua",
          ["lua.rock.vendor.dkjson"] = "lua/rock/vendor/dkjson.lua",
-         ["lua.rock.vendor.toml"] = "lua/rock/vendor/toml.lua",
       }
    }
 }
